@@ -22,7 +22,11 @@
     {
       "matches": ["<all_urls>"],
       "css": ["assets/index.css"],
-      "js": ["content.js"]
+      "js": [
+        "chunks/react.js",
+        "chunks/react-dom.js",
+        "content.js"
+      ]
     }
   ],
   "content_security_policy": {

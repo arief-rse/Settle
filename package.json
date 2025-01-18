@@ -4,7 +4,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc && vite build && cp public/manifest.json public/popup.html dist/",
+    "build": "tsc && vite build && vite build --mode content && vite build --mode background && cp public/manifest.json public/popup.html dist/",
     "preview": "vite preview",
     "lint": "eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0"
   },
