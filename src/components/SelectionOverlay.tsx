@@ -45,6 +45,7 @@ const SelectionOverlay = ({ onSelectionComplete, onCancel }: SelectionOverlayPro
     if (!isDrawing) return;
     setIsDrawing(false);
     onSelectionComplete(startPos, endPos);
+    onCancel();
   };
 
   return (
