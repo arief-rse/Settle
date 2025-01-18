@@ -11,19 +11,11 @@ let container: HTMLDivElement | null = null;
 let root: ReturnType<typeof createRoot> | null = null;
 
 const injectReactApp = () => {
-  // if (container) return;
+  cleanupReactApp(); // Clean up any existing overlay first
+  
   container = document.createElement('div')
   container.id = 'text-extractor-overlay'
-
-  // Insert at the beginning of body
-  const firstChild = document.body.firstChild
-  if (firstChild) {
-    document.body.insertBefore(container, firstChild)
-  } else {
-    document.body.appendChild(container)
-  }
-
-  console.log('injecting react app', container)
+  document.body.appendChild(container)
 
   root = createRoot(container)
   root.render(
@@ -39,21 +31,25 @@ const cleanupReactApp = () => {
     root.unmount()
     root = null
   }
-  if (container) {
-    container.remove()
+  if (container && container.parentNode) {
+    container.parentNode.removeChild(container)
     container = null
   }
 }
 
 if (isChromeExtension) {
+  // Clean up when the content script is unloaded
+  window.addEventListener('unload', cleanupReactApp)
+
   chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
+    console.log('Received message:', message);
     if (message.type === 'START_SELECTION') {
+      console.log('Starting selection...');
       injectReactApp()
       sendResponse({ success: true })
-    } else if (message.type === 'STOP_SELECTION') {
-      cleanupReactApp()
-      sendResponse({ success: true })
     }
+    // Keep the message channel open
+    return true
   })
 } else {
   console.warn('Chrome extension APIs not available. Some features may not work.')

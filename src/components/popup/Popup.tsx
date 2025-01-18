@@ -13,6 +13,7 @@ const Popup = () => {
   const [activeTab, setActiveTab] = useState<"analyze" | "history">("analyze");
   const [isSelecting, setIsSelecting] = useState(false);
   const [selectedText, setSelectedText] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     chrome.runtime.sendMessage({ type: 'GET_SELECTED_TEXT' }, (response) => {
@@ -40,6 +41,12 @@ const Popup = () => {
         throw new Error('No active tab found');
       }
 
+      // Check if we can access the page
+      const url = tab.url || '';
+      if (url.startsWith('chrome://') || url.startsWith('chrome-extension://') || url.startsWith('https://chrome.google.com/webstore/')) {
+        throw new Error('This page cannot be accessed by extensions for security reasons. Please try on a regular webpage.');
+      }
+
       await chrome.scripting.executeScript({
         target: { tabId: tab.id },
         files: ['content.js']
@@ -47,9 +54,16 @@ const Popup = () => {
 
       await chrome.tabs.sendMessage(tab.id, { type: "START_SELECTION" });
       window.close();
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error starting selection:', error);
       setIsSelecting(false);
+      
+      // Show a more user-friendly error message
+      const errorMessage = error.message.includes('ExtensionsSettings policy') 
+        ? 'This page cannot be accessed due to security settings. Please try on a regular webpage.'
+        : error.message;
+        
+      setError(errorMessage);
     }
   };
 
@@ -83,7 +97,14 @@ const Popup = () => {
           </TabsList>
 
           <TabsContent value="analyze" className="mt-0">
-            {!selectedText ? (
+            {error ? (
+              <div className="text-center py-8">
+                <h3 className="text-lg font-semibold mb-2 text-red-500">Error</h3>
+                <p className="text-sm text-muted-foreground mb-4">
+                  {error}
+                </p>
+              </div>
+            ) : !selectedText ? (
               <div className="text-center py-8">
                 <h3 className="text-lg font-semibold mb-2">Select Text to Analyze</h3>
                 <p className="text-sm text-muted-foreground mb-4">

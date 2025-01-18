@@ -27,26 +27,34 @@ chrome.action.onClicked.addListener(async (tab) => {
 
 // Listen for messages from popup and content script
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
+  console.log('Background received message:', message);
+
   if (message.type === 'GET_LAST_TEXT') {
     sendResponse({ text: lastExtractedText });
   }
 
+  if (message.type === 'GET_SELECTED_TEXT') {
+    console.log('Sending selected text:', selectedText);
+    sendResponse({ text: selectedText?.text || null });
+    return true;
+  }
+
   if (message.type === 'TEXT_SELECTED') {
+    console.log('Text selected:', message);
     selectedText = {
       text: message.text,
-      timestamp: message.timestamp
+      timestamp: message.timestamp || new Date().toISOString()
     };
-    // Notify the popup if it's open
+    // Notify popup about new text
     chrome.runtime.sendMessage({ 
       type: 'TEXT_AVAILABLE', 
-      text: message.text,
-      timestamp: message.timestamp
+      text: message.text 
+    }).catch(() => {
+      // Popup might be closed, which is fine
+      console.log('Could not send TEXT_AVAILABLE message (popup probably closed)');
     });
+    return true;
   }
-  
-  if (message.type === 'GET_SELECTED_TEXT') {
-    sendResponse(selectedText);
-    selectedText = null; // Clear after sending
-  }
+
   return true;
 });
