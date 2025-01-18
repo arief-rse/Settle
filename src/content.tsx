@@ -1,4 +1,4 @@
-import React, { StrictMode, useState, useCallback } from 'react';
+import React, { useState, useCallback } from 'react';
 import { createRoot } from 'react-dom/client';
 
 (() => {
@@ -9,7 +9,7 @@ import { createRoot } from 'react-dom/client';
   const injectStyles = () => {
     const style = document.createElement('style');
     style.textContent = `
-      .text-extractor-selection-tool {
+      .text-extractor-overlay {
         position: fixed !important;
         top: 0 !important;
         left: 0 !important;
@@ -21,7 +21,7 @@ import { createRoot } from 'react-dom/client';
         pointer-events: auto !important;
       }
 
-      .text-extractor-selection-box {
+      .text-extractor-selection {
         position: absolute !important;
         border: 2px solid #007bff !important;
         background: rgba(0, 123, 255, 0.1) !important;
@@ -32,31 +32,14 @@ import { createRoot } from 'react-dom/client';
     return style;
   };
 
-  const SelectionBox: React.FC<{
-    startX: number;
-    startY: number;
-    width: number;
-    height: number;
-  }> = ({ startX, startY, width, height }) => {
-    return (
-      <div
-        className="text-extractor-selection-box"
-        style={{
-          left: `${startX}px`,
-          top: `${startY}px`,
-          width: `${width}px`,
-          height: `${height}px`,
-        }}
-      />
-    );
-  };
-
-  const SelectionTool = () => {
+  const SelectionOverlay = () => {
     const [isSelecting, setIsSelecting] = useState(false);
     const [selectionStart, setSelectionStart] = useState({ x: 0, y: 0 });
     const [selectionEnd, setSelectionEnd] = useState({ x: 0, y: 0 });
+    const [isVisible, setIsVisible] = useState(true);
 
     const handleMouseDown = useCallback((e: React.MouseEvent) => {
+      e.preventDefault();
       setIsSelecting(true);
       setSelectionStart({ x: e.clientX, y: e.clientY });
       setSelectionEnd({ x: e.clientX, y: e.clientY });
@@ -71,7 +54,7 @@ import { createRoot } from 'react-dom/client';
     const handleMouseUp = useCallback(() => {
       if (isSelecting) {
         setIsSelecting(false);
-        
+
         // Calculate selection rectangle
         const left = Math.min(selectionStart.x, selectionEnd.x);
         const top = Math.min(selectionStart.y, selectionEnd.y);
@@ -88,71 +71,89 @@ import { createRoot } from 'react-dom/client';
 
         let node: Text | null;
         while ((node = walker.nextNode() as Text)) {
-          const rect = node.parentElement?.getBoundingClientRect();
-          if (rect && 
-              rect.left <= right && 
-              rect.right >= left && 
-              rect.top <= bottom && 
-              rect.bottom >= top) {
-            textNodes.push(node);
+          const range = document.createRange();
+          range.selectNodeContents(node);
+          const rects = range.getClientRects();
+
+          for (let i = 0; i < rects.length; i++) {
+            const rect = rects[i];
+            if (
+              rect.left <= right &&
+              rect.right >= left &&
+              rect.top <= bottom &&
+              rect.bottom >= top
+            ) {
+              textNodes.push(node);
+              break;
+            }
           }
         }
 
-        // Extract text from selected nodes
-        const selectedText = textNodes
+        // Extract and combine text
+        const text = textNodes
           .map(node => node.textContent)
           .filter(Boolean)
           .join(' ')
           .trim();
 
-        // Send selected text to background script
-        if (selectedText) {
+        if (text) {
           chrome.runtime.sendMessage({
             type: 'TEXT_SELECTED',
-            text: selectedText,
+            text,
             timestamp: new Date().toISOString()
-          }, (response) => {
-            if (chrome.runtime.lastError) {
-              console.error('Error sending message:', chrome.runtime.lastError);
-            } else if (response?.success) {
-              console.log('Text selection sent successfully');
-            }
           });
+          setIsVisible(false);
         }
-
-        // Clean up the overlay
-        cleanupReactApp();
       }
     }, [isSelecting, selectionStart, selectionEnd]);
 
-    // Calculate selection box dimensions
-    const selectionStyle = {
-      startX: Math.min(selectionStart.x, selectionEnd.x),
-      startY: Math.min(selectionStart.y, selectionEnd.y),
-      width: Math.abs(selectionEnd.x - selectionStart.x),
-      height: Math.abs(selectionEnd.y - selectionStart.y)
-    };
+    if (!isVisible) return null;
+
+    const width = Math.abs(selectionEnd.x - selectionStart.x);
+    const height = Math.abs(selectionEnd.y - selectionStart.y);
+    const left = Math.min(selectionStart.x, selectionEnd.x);
+    const top = Math.min(selectionStart.y, selectionEnd.y);
 
     return (
       <div
-        className="text-extractor-selection-tool"
+        className="text-extractor-overlay"
         onMouseDown={handleMouseDown}
         onMouseMove={handleMouseMove}
         onMouseUp={handleMouseUp}
       >
         {isSelecting && (
-          <SelectionBox {...selectionStyle} />
+          <div
+            className="text-extractor-selection"
+            style={{
+              width: `${width}px`,
+              height: `${height}px`,
+              left: `${left}px`,
+              top: `${top}px`,
+            }}
+          />
         )}
       </div>
     );
   };
 
-  const injectReactApp = () => {
+  const injectReactApp = async () => {
+    // Check authentication first
+    const isAuthenticated = await new Promise((resolve) => {
+      chrome.runtime.sendMessage({ type: 'CHECK_AUTH' }, (response) => {
+        resolve(response);
+      });
+    });
+
+    if (!isAuthenticated) {
+      chrome.runtime.sendMessage({ type: 'OPEN_AUTH' });
+      return;
+    }
+
     cleanupReactApp(); // Clean up any existing overlay first
-    
+
     // Inject styles
     const styleElement = injectStyles();
-    
+
     // Create container
     container = document.createElement('div');
     container.id = 'text-extractor-overlay';
@@ -160,14 +161,14 @@ import { createRoot } from 'react-dom/client';
 
     root = createRoot(container);
     root.render(
-      <StrictMode>
-        <SelectionTool />
-      </StrictMode>
+      <React.StrictMode>
+        <SelectionOverlay />
+      </React.StrictMode>
     );
 
     // Store style element reference for cleanup
     container.dataset.styleElementId = styleElement.id;
-  }
+  };
 
   const cleanupReactApp = () => {
     if (root) {
@@ -184,7 +185,7 @@ import { createRoot } from 'react-dom/client';
       container.remove();
       container = null;
     }
-  }
+  };
 
   // Check if Chrome APIs are available
   const isChromeExtension = typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.id;

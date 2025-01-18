@@ -29,14 +29,14 @@ export default defineConfig(({ mode }) => {
         lib: {
           entry: resolve(__dirname, "src/content.tsx"),
           name: 'content',
+          fileName: 'content',
           formats: ['iife'],
-          fileName: () => 'content.js',
         },
         rollupOptions: {
           output: {
-            extend: true,
+            entryFileNames: '[name].js',
             assetFileNames: (assetInfo) => {
-              if (assetInfo.name === 'style.css') return 'style.css';
+              if (assetInfo.name === 'style.css') return 'content.css';
               return `assets/${assetInfo.name}`;
             },
           },
@@ -59,8 +59,13 @@ export default defineConfig(({ mode }) => {
         lib: {
           entry: resolve(__dirname, "src/background.ts"),
           name: 'background',
+          fileName: 'background',
           formats: ['iife'],
-          fileName: () => 'background.js',
+        },
+        rollupOptions: {
+          output: {
+            entryFileNames: '[name].js',
+          },
         },
       },
     };
@@ -74,12 +79,13 @@ export default defineConfig(({ mode }) => {
       rollupOptions: {
         input: {
           index: resolve(__dirname, "src/index.tsx"),
+          auth: resolve(__dirname, "public/auth.html"),
         },
         output: {
           entryFileNames: '[name].js',
           format: 'es',
           assetFileNames: (assetInfo) => {
-            if (assetInfo.name === 'index.css') return 'assets/index.css';
+            if (assetInfo.name === 'style.css') return 'content.css';
             return `assets/${assetInfo.name}`;
           },
           chunkFileNames: 'chunks/[name].[hash].js',

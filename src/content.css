@@ -1,0 +1,41 @@
+.text-extractor-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 999999;
+  cursor: crosshair;
+  background: rgba(0, 0, 0, 0.1);
+}
+
+.text-extractor-selection {
+  position: absolute;
+  border: 2px solid #4f46e5;
+  background: rgba(79, 70, 229, 0.1);
+  pointer-events: none;
+}
+
+.text-extractor-result {
+  position: fixed;
+  max-width: 80%;
+  padding: 1rem;
+  background: white;
+  border-radius: 0.5rem;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+  z-index: 1000000;
+}
+
+.text-extractor-close {
+  position: absolute;
+  top: 0.5rem;
+  right: 0.5rem;
+  padding: 0.25rem;
+  cursor: pointer;
+  opacity: 0.5;
+  transition: opacity 0.2s;
+}
+
+.text-extractor-close:hover {
+  opacity: 1;
+}
