@@ -111,6 +111,12 @@ import { createRoot } from 'react-dom/client';
             type: 'TEXT_SELECTED',
             text: selectedText,
             timestamp: new Date().toISOString()
+          }, (response) => {
+            if (chrome.runtime.lastError) {
+              console.error('Error sending message:', chrome.runtime.lastError);
+            } else if (response?.success) {
+              console.log('Text selection sent successfully');
+            }
           });
         }
 

@@ -32,6 +32,18 @@ const Popup = () => {
     return () => chrome.runtime.onMessage.removeListener(handleMessage);
   }, []);
 
+  useEffect(() => {
+    const handleMessage = (message: any) => {
+      if (message.type === 'TEXT_SELECTED') {
+        setSelectedText(message.text);
+        setIsSelecting(false);
+      }
+    };
+
+    chrome.runtime.onMessage.addListener(handleMessage);
+    return () => chrome.runtime.onMessage.removeListener(handleMessage);
+  }, []);
+
   const handleStartSelection = async () => {
     try {
       setIsSelecting(true);
@@ -99,31 +111,25 @@ const Popup = () => {
           <TabsContent value="analyze" className="mt-0">
             {error ? (
               <div className="text-center py-8">
-                <h3 className="text-lg font-semibold mb-2 text-red-500">Error</h3>
-                <p className="text-sm text-muted-foreground mb-4">
-                  {error}
-                </p>
+                <p className="text-red-500 mb-4">{error}</p>
+                <Button onClick={() => setError(null)} variant="outline">Try Again</Button>
               </div>
-            ) : !selectedText ? (
-              <div className="text-center py-8">
-                <h3 className="text-lg font-semibold mb-2">Select Text to Analyze</h3>
-                <p className="text-sm text-muted-foreground mb-4">
-                  Click the button below to start selecting text from the webpage
-                </p>
-                <Button
-                  onClick={handleStartSelection}
-                  className="w-full max-w-xs rounded-lg"
-                  disabled={isSelecting}
-                >
-                  {isSelecting ? "Selecting..." : "Start Selection"}
-                </Button>
-              </div>
-            ) : (
+            ) : selectedText ? (
               <ResponsePanel
                 extractedText={selectedText}
                 onClose={() => setSelectedText(null)}
                 onHistory={() => setActiveTab("history")}
               />
+            ) : (
+              <div className="text-center py-8">
+                <Button
+                  onClick={handleStartSelection}
+                  disabled={isSelecting}
+                  className="w-full max-w-sm"
+                >
+                  {isSelecting ? "Selecting..." : "Start Selection"}
+                </Button>
+              </div>
             )}
           </TabsContent>
 

@@ -77,41 +77,42 @@ const ResponsePanel = ({ extractedText, onClose, onHistory }: ResponsePanelProps
         </div>
       </div>
 
-      <div className="p-4 space-y-4">
-        <div className="space-y-2">
-          <h4 className="font-medium text-sm text-gray-500">Selected Text</h4>
-          <div className="p-3 bg-gray-50 rounded-lg text-sm">{extractedText}</div>
+      <div className="p-4 space-y-6">
+        <div className="space-y-3">
+          <h4 className="font-medium text-sm text-gray-600">Selected Text</h4>
+          <div className="min-h-[100px] p-4 bg-white border rounded-lg text-sm text-gray-700 shadow-inner">{extractedText}</div>
         </div>
 
         {!response && !isLoading && (
-          <div className="flex justify-between items-center">
-            <Button onClick={handleAnalyze} className="w-full">
-              Analyze Text
-            </Button>
-          </div>
+          <Button 
+            onClick={handleAnalyze} 
+            className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-2.5"
+          >
+            Analyze Text
+          </Button>
         )}
 
         {isLoading && (
-          <div className="flex items-center justify-center py-8">
+          <div className="flex items-center justify-center py-6">
             <Loader2 className="h-8 w-8 animate-spin text-indigo-600" />
           </div>
         )}
 
         {error && (
-          <div className="p-3 bg-red-50 text-red-600 rounded-lg text-sm">
+          <div className="p-4 bg-red-50 border border-red-100 text-red-600 rounded-lg text-sm">
             {error}
           </div>
         )}
 
         {response && (
-          <div className="space-y-2">
+          <div className="space-y-3">
             <div className="flex items-center justify-between">
-              <h4 className="font-medium text-sm text-gray-500">Analysis</h4>
+              <h4 className="font-medium text-sm text-gray-600">Analysis</h4>
               <Button variant="ghost" size="sm" onClick={onHistory}>
                 View History
               </Button>
             </div>
-            <div className="p-3 bg-gray-50 rounded-lg text-sm whitespace-pre-wrap">
+            <div className="p-4 bg-white border rounded-lg text-sm whitespace-pre-wrap">
               {response}
             </div>
           </div>
