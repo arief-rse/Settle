@@ -14,6 +14,16 @@ export default defineConfig({
       formats: ['iife'],
       fileName: () => 'popup.js',
     },
+    cssCodeSplit: false,
+    rollupOptions: {
+      output: {
+        assetFileNames: (assetInfo) => {
+          // Skip CSS since we're using the shared one
+          if (assetInfo.name === 'style.css') return 'style.css.skip';
+          return assetInfo.name;
+        },
+      },
+    },
   },
   resolve: {
     alias: {

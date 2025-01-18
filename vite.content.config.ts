@@ -14,6 +14,14 @@ export default defineConfig({
       formats: ['iife'],
       fileName: () => 'content.js',
     },
+    rollupOptions: {
+      output: {
+        assetFileNames: (assetInfo) => {
+          if (assetInfo.name === 'style.css') return 'shared.css';
+          return assetInfo.name;
+        },
+      },
+    },
   },
   resolve: {
     alias: {

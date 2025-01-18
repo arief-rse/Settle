@@ -1,4 +1,4 @@
-import { SelectionBoxStyle } from "../types/selection";
+import { SelectionBoxStyle } from "../../../types/selection";
 
 interface SelectionBoxProps {
   style: SelectionBoxStyle;

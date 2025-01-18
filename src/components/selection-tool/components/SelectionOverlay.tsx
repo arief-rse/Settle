@@ -1,5 +1,5 @@
-import { useEffect, useRef, useState } from "react";
-import { Position } from "../types/selection";
+import { useEffect, useRef, useState, MouseEvent } from "react";
+import { Position } from "../../../types/selection";
 import SelectionBox from "./SelectionBox";
 
 interface SelectionOverlayProps {
@@ -24,7 +24,7 @@ const SelectionOverlay = ({ onSelectionComplete, onCancel }: SelectionOverlayPro
     return () => window.removeEventListener("keydown", handleKeyPress);
   }, [onCancel]);
 
-  const handleMouseDown = (e: React.MouseEvent) => {
+  const handleMouseDown = (e: MouseEvent) => {
     setIsDrawing(true);
     const rect = e.currentTarget.getBoundingClientRect();
     const x = e.clientX - rect.left;
@@ -33,7 +33,7 @@ const SelectionOverlay = ({ onSelectionComplete, onCancel }: SelectionOverlayPro
     setEndPos({ x, y });
   };
 
-  const handleMouseMove = (e: React.MouseEvent) => {
+  const handleMouseMove = (e: MouseEvent) => {
     if (!isDrawing) return;
     const rect = e.currentTarget.getBoundingClientRect();
     const x = e.clientX - rect.left;

@@ -1,7 +1,8 @@
 import { StrictMode} from 'react'
 import { createRoot } from 'react-dom/client'
 import { Toaster } from 'sonner'
-import SelectionTool from './components/SelectionTool'
+import SelectionTool from './components/selection-tool'
+import './index.css'
 
 // Check if Chrome APIs are available
 const isChromeExtension = typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.id
@@ -10,12 +11,19 @@ let container: HTMLDivElement | null = null;
 let root: ReturnType<typeof createRoot> | null = null;
 
 const injectReactApp = () => {
-  console.log('injecting react app')
-  if (container) return; // Already injected
-  
+  // if (container) return;
   container = document.createElement('div')
   container.id = 'text-extractor-overlay'
-  document.body.appendChild(container)
+
+  // Insert at the beginning of body
+  const firstChild = document.body.firstChild
+  if (firstChild) {
+    document.body.insertBefore(container, firstChild)
+  } else {
+    document.body.appendChild(container)
+  }
+
+  console.log('injecting react app', container)
 
   root = createRoot(container)
   root.render(
