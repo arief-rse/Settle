@@ -1,4 +1,4 @@
-import React, { StrictMode } from 'react';
+import React, { StrictMode, useState, useCallback } from 'react';
 import { createRoot } from 'react-dom/client';
 
 (() => {
@@ -32,6 +32,115 @@ import { createRoot } from 'react-dom/client';
     return style;
   };
 
+  const SelectionBox: React.FC<{
+    startX: number;
+    startY: number;
+    width: number;
+    height: number;
+  }> = ({ startX, startY, width, height }) => {
+    return (
+      <div
+        className="text-extractor-selection-box"
+        style={{
+          left: `${startX}px`,
+          top: `${startY}px`,
+          width: `${width}px`,
+          height: `${height}px`,
+        }}
+      />
+    );
+  };
+
+  const SelectionTool = () => {
+    const [isSelecting, setIsSelecting] = useState(false);
+    const [selectionStart, setSelectionStart] = useState({ x: 0, y: 0 });
+    const [selectionEnd, setSelectionEnd] = useState({ x: 0, y: 0 });
+
+    const handleMouseDown = useCallback((e: React.MouseEvent) => {
+      setIsSelecting(true);
+      setSelectionStart({ x: e.clientX, y: e.clientY });
+      setSelectionEnd({ x: e.clientX, y: e.clientY });
+    }, []);
+
+    const handleMouseMove = useCallback((e: React.MouseEvent) => {
+      if (isSelecting) {
+        setSelectionEnd({ x: e.clientX, y: e.clientY });
+      }
+    }, [isSelecting]);
+
+    const handleMouseUp = useCallback(() => {
+      if (isSelecting) {
+        setIsSelecting(false);
+        
+        // Calculate selection rectangle
+        const left = Math.min(selectionStart.x, selectionEnd.x);
+        const top = Math.min(selectionStart.y, selectionEnd.y);
+        const right = Math.max(selectionStart.x, selectionEnd.x);
+        const bottom = Math.max(selectionStart.y, selectionEnd.y);
+
+        // Get all text nodes within the selection rectangle
+        const textNodes: Text[] = [];
+        const walker = document.createTreeWalker(
+          document.body,
+          NodeFilter.SHOW_TEXT,
+          null
+        );
+
+        let node: Text | null;
+        while ((node = walker.nextNode() as Text)) {
+          const rect = node.parentElement?.getBoundingClientRect();
+          if (rect && 
+              rect.left <= right && 
+              rect.right >= left && 
+              rect.top <= bottom && 
+              rect.bottom >= top) {
+            textNodes.push(node);
+          }
+        }
+
+        // Extract text from selected nodes
+        const selectedText = textNodes
+          .map(node => node.textContent)
+          .filter(Boolean)
+          .join(' ')
+          .trim();
+
+        // Send selected text to background script
+        if (selectedText) {
+          chrome.runtime.sendMessage({
+            type: 'TEXT_SELECTED',
+            text: selectedText,
+            timestamp: new Date().toISOString()
+          });
+        }
+
+        // Clean up the overlay
+        cleanupReactApp();
+      }
+    }, [isSelecting, selectionStart, selectionEnd]);
+
+    // Calculate selection box dimensions
+    const selectionStyle = {
+      startX: Math.min(selectionStart.x, selectionEnd.x),
+      startY: Math.min(selectionStart.y, selectionEnd.y),
+      width: Math.abs(selectionEnd.x - selectionStart.x),
+      height: Math.abs(selectionEnd.y - selectionStart.y)
+    };
+
+    return (
+      <div
+        className="text-extractor-selection-tool"
+        onMouseDown={handleMouseDown}
+        onMouseMove={handleMouseMove}
+        onMouseUp={handleMouseUp}
+      >
+        {isSelecting && (
+          <SelectionBox {...selectionStyle} />
+        )}
+      </div>
+    );
+  };
+
   const injectReactApp = () => {
     cleanupReactApp(); // Clean up any existing overlay first
     
@@ -43,20 +152,11 @@ import { createRoot } from 'react-dom/client';
     container.id = 'text-extractor-overlay';
     document.body.appendChild(container);
 
-    // Create the SelectionTool component
-    const SelectionTool = () => {
-      return React.createElement('div', {
-        className: 'text-extractor-selection-tool',
-      });
-    };
-
     root = createRoot(container);
     root.render(
-      React.createElement(
-        StrictMode,
-        null,
-        React.createElement(SelectionTool)
-      )
+      <StrictMode>
+        <SelectionTool />
+      </StrictMode>
     );
 
     // Store style element reference for cleanup
