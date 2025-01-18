@@ -17,6 +17,21 @@ export default defineConfig(({ mode }) => {
           formats: ['iife'],
           fileName: () => 'content.js',
         },
+        rollupOptions: {
+          output: {
+            extend: true,
+            assetFileNames: (assetInfo) => {
+              if (assetInfo.name === 'style.css') return 'style.css';
+              return `assets/${assetInfo.name}`;
+            },
+          },
+        },
+      },
+      css: {
+        // Generate a single CSS file
+        modules: {
+          generateScopedName: '[name]__[local]___[hash:base64:5]'
+        }
       },
       resolve: {
         alias: {
@@ -59,12 +74,15 @@ export default defineConfig(({ mode }) => {
       cssMinify: true,
       rollupOptions: {
         input: {
-          popup: resolve(__dirname, "src/index.tsx"),
+          index: resolve(__dirname, "src/index.tsx"),
         },
         output: {
           entryFileNames: '[name].js',
           format: 'es',
-          assetFileNames: 'assets/[name][extname]',
+          assetFileNames: (assetInfo) => {
+            if (assetInfo.name === 'style.css') return 'style.css';
+            return `assets/${assetInfo.name}`;
+          },
           chunkFileNames: 'chunks/[name].[hash].js',
         },
       },
