@@ -1,5 +1,5 @@
-import React from 'react'
-import ReactDOM from 'react-dom/client'
+import { StrictMode } from 'react'
+import { createRoot } from 'react-dom/client'
 import { Button } from './components/ui/button'
 import './index.css'
 
@@ -16,9 +16,9 @@ const Popup = () => {
   };
 
   return (
-    <div className="p-4 w-[300px] flex flex-col gap-4">
+    <div className="p-4 w-[300px] h-[200px] bg-white flex flex-col gap-4">
       <h2 className="text-lg font-semibold">Rectangle Reader Buddy</h2>
-      <p className="text-gray-600 text-sm">
+      <p className="text-gray-600 text-sm my-4">
         Click the button below to start selecting text from the webpage.
       </p>
       <Button onClick={handleStartSelection}>
@@ -28,8 +28,9 @@ const Popup = () => {
   );
 };
 
-ReactDOM.createRoot(document.getElementById('root')!).render(
-  <React.StrictMode>
+const root = createRoot(document.getElementById('root')!)
+root.render(
+  <StrictMode>
     <Popup />
-  </React.StrictMode>,
+  </StrictMode>
 )

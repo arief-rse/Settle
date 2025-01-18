@@ -1,37 +1,33 @@
-import { defineConfig } from 'vite'
-import react from '@vitejs/plugin-react'
-import { resolve } from 'path'
+import { defineConfig } from "vite";
+import react from "@vitejs/plugin-react";
+import { resolve } from "path";
 
 export default defineConfig({
   plugins: [react()],
+  build: {
+    outDir: "dist",
+    emptyOutDir: true,
+    copyPublicDir: true,
+    lib: {
+      entry: {
+        popup: resolve(__dirname, "src/popup.tsx"),
+        content: resolve(__dirname, "src/content.tsx"),
+        background: resolve(__dirname, "src/background.ts"),
+      },
+      formats: ['iife'],
+      name: 'RectangleReaderBuddy'
+    },
+    rollupOptions: {
+      output: {
+        entryFileNames: "[name].js",
+        chunkFileNames: "[name]-[hash].js",
+        assetFileNames: "[name].[ext]",
+      },
+    },
+  },
   resolve: {
     alias: {
-      '@': resolve(__dirname, './src'),
+      "@": resolve(__dirname, "./src"),
     },
   },
-  build: {
-    outDir: 'dist',
-    emptyOutDir: true,
-    rollupOptions: {
-      input: {
-        popup: resolve(__dirname, 'src/popup.tsx'),
-        content: resolve(__dirname, 'src/content.tsx'),
-        background: resolve(__dirname, 'src/background.ts'),
-      },
-      output: [
-        {
-          format: 'iife',
-          entryFileNames: '[name].js',
-          globals: {
-            react: 'React',
-            'react-dom': 'ReactDOM',
-            chrome: 'chrome',
-          },
-        },
-      ],
-      external: ['chrome'],
-    },
-    target: 'esnext',
-    minify: true,
-  },
-})
+});

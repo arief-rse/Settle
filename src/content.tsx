@@ -10,6 +10,7 @@ let container: HTMLDivElement | null = null;
 let root: ReturnType<typeof createRoot> | null = null;
 
 const injectReactApp = () => {
+  console.log('injecting react app')
   if (container) return; // Already injected
   
   container = document.createElement('div')

@@ -1,11 +1,8 @@
-// Store the last extracted text
 let lastExtractedText: string | null = null
 
-// Handle extension icon click
 chrome.action.onClicked.addListener(async (tab) => {
   if (!tab.id) return
 
-  // Toggle selection mode
   await chrome.tabs.sendMessage(tab.id, {
     type: 'TOGGLE_SELECTION',
     payload: true
