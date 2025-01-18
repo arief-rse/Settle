@@ -9,31 +9,27 @@ export default defineConfig({
       '@': resolve(__dirname, './src'),
     },
   },
-  define: {
-    'process.env.NODE_ENV': '"production"'
-  },
   build: {
     outDir: 'dist',
     emptyOutDir: true,
-    lib: {
-      entry: {
+    rollupOptions: {
+      input: {
         popup: resolve(__dirname, 'src/popup.tsx'),
         content: resolve(__dirname, 'src/content.tsx'),
         background: resolve(__dirname, 'src/background.ts'),
       },
-      name: 'TextExtractor',
-      formats: ['umd'],
-    },
-    rollupOptions: {
-      external: ['chrome'],
-      output: {
-        globals: {
-          react: 'React',
-          'react-dom': 'ReactDOM',
-          chrome: 'chrome'
+      output: [
+        {
+          format: 'iife',
+          entryFileNames: '[name].js',
+          globals: {
+            react: 'React',
+            'react-dom': 'ReactDOM',
+            chrome: 'chrome',
+          },
         },
-        inlineDynamicImports: false,
-      },
+      ],
+      external: ['chrome'],
     },
     target: 'esnext',
     minify: true,

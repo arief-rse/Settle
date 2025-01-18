@@ -1,6 +1,5 @@
 import { useState, useEffect } from "react";
 import { toast } from "sonner";
-import { Button } from "./ui/button";
 import { Position } from "../types/selection";
 import { extractTextFromSelection } from "../services/textExtractor";
 import SelectionOverlay from "./SelectionOverlay";
@@ -28,83 +27,69 @@ const injectStyles = () => {
 };
 
 const SelectionTool = () => {
-  const [isSelecting, setIsSelecting] = useState(true);
+  const [isSelecting, setIsSelecting] = useState(false);
   const [showResponse, setShowResponse] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
   const [selectedText, setSelectedText] = useState("");
 
   useEffect(() => {
-    // Inject styles directly instead of using Chrome APIs
     injectStyles();
-
-    // Listen for messages from the popup
-    const messageListener = (message: any) => {
-      if (message.type === 'TOGGLE_SELECTION') {
-        setIsSelecting(message.payload);
-      }
-    };
-
-    if (chrome.runtime?.onMessage) {
-      chrome.runtime.onMessage.addListener(messageListener);
-      return () => {
-        chrome.runtime.onMessage.removeListener(messageListener);
-      };
-    }
   }, []);
 
   const handleSelectionComplete = async (startPos: Position, endPos: Position) => {
-    const toastId = toast.loading("Processing selection...");
-
     try {
       const text = await extractTextFromSelection(startPos, endPos);
-      toast.success("Text extracted successfully", { id: toastId });
       setSelectedText(text);
       setIsSelecting(false);
       setShowResponse(true);
+      
+      // Send message to hide overlay
+      if (chrome?.runtime?.sendMessage) {
+        chrome.runtime.sendMessage({ type: 'STOP_SELECTION' });
+      }
     } catch (error) {
-      console.error(error);
-      toast.error(error instanceof Error ? error.message : "Failed to process selection", { id: toastId });
+      toast.error("Failed to extract text. Please try again.");
+      console.error('Error extracting text:', error);
     }
   };
 
   const handleSelectionCancel = () => {
     setIsSelecting(false);
+    if (chrome?.runtime?.sendMessage) {
+      chrome.runtime.sendMessage({ type: 'STOP_SELECTION' });
+    }
   };
 
-  const handleResponseClose = () => {
+  const handleHistoryClick = () => {
+    setShowHistory(true);
     setShowResponse(false);
-    setSelectedText("");
-    setIsSelecting(true);
+    setIsSelecting(false);
   };
 
-  const handleHistoryToggle = () => {
-    setShowHistory(!showHistory);
+  const handleBackClick = () => {
+    setShowHistory(false);
+    setShowResponse(false);
+    setIsSelecting(true);
+    setSelectedText("");
   };
 
   return (
-    <div className="fixed bottom-8 right-8 flex flex-col gap-2">
-      {!isSelecting && !showResponse && (
-        <Button variant="outline" onClick={handleHistoryToggle}>
-          History
-        </Button>
-      )}
-
+    <div className="fixed inset-0 flex items-center justify-center">
       {isSelecting && (
-        <SelectionOverlay
+        <SelectionOverlay 
           onSelectionComplete={handleSelectionComplete}
           onCancel={handleSelectionCancel}
         />
       )}
-
       {showResponse && (
         <ResponsePanel
           extractedText={selectedText}
-          onClose={handleResponseClose}
+          onClose={handleBackClick}
+          onHistory={handleHistoryClick}
         />
       )}
-
       {showHistory && (
-        <HistoryPanel onClose={() => setShowHistory(false)} />
+        <HistoryPanel onClose={handleBackClick} />
       )}
     </div>
   );

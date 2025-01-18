@@ -2,16 +2,17 @@ import { X } from "lucide-react";
 import { Button } from "./ui/button";
 import { Card } from "./ui/card";
 import { useState } from "react";
-import { processExtractedText } from "@/lib/aiProcessor";
+import { processExtractedText } from "@/lib/ai-processor";
 import { toast } from "sonner";
 import { Input } from "./ui/input";
 
 interface ResponsePanelProps {
   extractedText: string;
   onClose: () => void;
+  onHistory: () => void;
 }
 
-const ResponsePanel = ({ extractedText, onClose }: ResponsePanelProps) => {
+const ResponsePanel = ({ extractedText, onClose, onHistory }: ResponsePanelProps) => {
   const [apiKey, setApiKey] = useState(localStorage.getItem("ANTHROPIC_API_KEY") || "");
   const [isProcessing, setIsProcessing] = useState(false);
   const [aiResponse, setAiResponse] = useState<string>("");
@@ -51,51 +52,51 @@ const ResponsePanel = ({ extractedText, onClose }: ResponsePanelProps) => {
   };
 
   return (
-    <Card className="w-96 p-4 shadow-xl animate-in slide-in-from-right">
-      <div className="flex justify-between items-start mb-4">
-        <h3 className="font-semibold">Text Analysis</h3>
-        <Button variant="ghost" size="icon" onClick={onClose}>
-          <X className="h-4 w-4" />
-        </Button>
-      </div>
+    <Card className="w-[600px] p-6 relative">
+      <Button
+        variant="ghost"
+        size="icon"
+        className="absolute right-2 top-2"
+        onClick={onClose}
+      >
+        <X className="h-4 w-4" />
+      </Button>
 
-      <div className="space-y-4">
-        <div>
-          <label className="block text-sm font-medium mb-1">
-            Selected Text:
-          </label>
-          <p className="text-sm bg-gray-50 p-2 rounded">{extractedText}</p>
+      <div className="flex flex-col gap-4">
+        <div className="flex justify-between items-center">
+          <h2 className="text-lg font-semibold">Extracted Text</h2>
+          <Button variant="outline" onClick={onHistory}>View History</Button>
+        </div>
+        
+        <div className="bg-gray-50 p-4 rounded-lg">
+          <p className="whitespace-pre-wrap">{extractedText}</p>
         </div>
 
-        {!aiResponse && (
-          <>
-            <div>
-              <label className="block text-sm font-medium mb-1">
-                Anthropic API Key:
-              </label>
-              <Input
-                type="password"
-                value={apiKey}
-                onChange={(e) => setApiKey(e.target.value)}
-                placeholder="Enter your API key"
-              />
-            </div>
+        <div className="flex flex-col gap-2">
+          <label htmlFor="api-key" className="text-sm font-medium">
+            Anthropic API Key
+          </label>
+          <Input
+            id="api-key"
+            type="password"
+            value={apiKey}
+            onChange={(e) => setApiKey(e.target.value)}
+            placeholder="Enter your API key"
+          />
+        </div>
 
-            <Button
-              className="w-full"
-              onClick={handleProcessText}
-              disabled={isProcessing}
-            >
-              {isProcessing ? "Processing..." : "Analyze Text"}
-            </Button>
-          </>
-        )}
+        <Button
+          onClick={handleProcessText}
+          disabled={isProcessing}
+        >
+          {isProcessing ? "Processing..." : "Process with Claude"}
+        </Button>
 
         {aiResponse && (
-          <div>
-            <label className="block text-sm font-medium mb-1">Analysis:</label>
-            <div className="bg-gray-50 p-2 rounded text-sm whitespace-pre-wrap">
-              {aiResponse}
+          <div className="mt-4">
+            <h3 className="text-lg font-semibold mb-2">AI Response</h3>
+            <div className="bg-gray-50 p-4 rounded-lg">
+              <p className="whitespace-pre-wrap">{aiResponse}</p>
             </div>
           </div>
         )}
