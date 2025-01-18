@@ -6,6 +6,10 @@ export default defineConfig(({ mode }) => {
   if (mode === 'content') {
     return {
       plugins: [react()],
+      define: {
+        'process.env': '{}',
+        'process.env.NODE_ENV': JSON.stringify(mode)
+      },
       build: {
         outDir: "dist",
         emptyOutDir: false,
@@ -44,6 +48,10 @@ export default defineConfig(({ mode }) => {
   if (mode === 'background') {
     return {
       plugins: [react()],
+      define: {
+        'process.env': '{}',
+        'process.env.NODE_ENV': JSON.stringify(mode)
+      },
       build: {
         outDir: "dist",
         emptyOutDir: false,
@@ -80,7 +88,7 @@ export default defineConfig(({ mode }) => {
           entryFileNames: '[name].js',
           format: 'es',
           assetFileNames: (assetInfo) => {
-            if (assetInfo.name === 'style.css') return 'style.css';
+            if (assetInfo.name === 'index.css') return 'assets/index.css';
             return `assets/${assetInfo.name}`;
           },
           chunkFileNames: 'chunks/[name].[hash].js',
