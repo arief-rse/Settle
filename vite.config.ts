@@ -1,15 +1,26 @@
-import { defineConfig } from "vite";
+import { defineConfig, loadEnv } from "vite";
 import react from "@vitejs/plugin-react";
 import { resolve } from "path";
 
 export default defineConfig(({ mode }) => {
+  const env = loadEnv(mode, process.cwd(), '');
+  
+  const commonConfig = {
+    plugins: [react()],
+    define: {
+      'process.env': JSON.stringify(env),
+      'process.env.NODE_ENV': JSON.stringify(mode)
+    },
+    resolve: {
+      alias: {
+        "@": resolve(__dirname, "./src"),
+      },
+    },
+  };
+
   if (mode === 'content') {
     return {
-      plugins: [react()],
-      define: {
-        'process.env': '{}',
-        'process.env.NODE_ENV': JSON.stringify(mode)
-      },
+      ...commonConfig,
       build: {
         outDir: "dist",
         emptyOutDir: false,
@@ -32,31 +43,19 @@ export default defineConfig(({ mode }) => {
         },
       },
       css: {
-        // Generate a single CSS file
         modules: {
           generateScopedName: '[name]__[local]___[hash:base64:5]'
         }
-      },
-      resolve: {
-        alias: {
-          "@": resolve(__dirname, "./src"),
-        },
       },
     };
   }
 
   if (mode === 'background') {
     return {
-      plugins: [react()],
-      define: {
-        'process.env': '{}',
-        'process.env.NODE_ENV': JSON.stringify(mode)
-      },
+      ...commonConfig,
       build: {
         outDir: "dist",
         emptyOutDir: false,
-        minify: 'esbuild',
-        cssMinify: true,
         lib: {
           entry: resolve(__dirname, "src/background.ts"),
           name: 'background',
@@ -64,22 +63,14 @@ export default defineConfig(({ mode }) => {
           fileName: () => 'background.js',
         },
       },
-      resolve: {
-        alias: {
-          "@": resolve(__dirname, "./src"),
-        },
-      },
     };
   }
 
-  // Default mode for popup
   return {
-    plugins: [react()],
+    ...commonConfig,
     build: {
       outDir: "dist",
       emptyOutDir: true,
-      minify: 'esbuild',
-      cssMinify: true,
       rollupOptions: {
         input: {
           index: resolve(__dirname, "src/index.tsx"),
@@ -93,11 +84,6 @@ export default defineConfig(({ mode }) => {
           },
           chunkFileNames: 'chunks/[name].[hash].js',
         },
-      },
-    },
-    resolve: {
-      alias: {
-        "@": resolve(__dirname, "./src"),
       },
     },
   };

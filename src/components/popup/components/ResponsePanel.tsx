@@ -21,7 +21,12 @@ const ResponsePanel = ({ extractedText, onClose, onHistory }: ResponsePanelProps
     setIsLoading(true);
     setError(null);
     try {
-      const result = await processExtractedText(extractedText, "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");
+      const apiKey = import.meta.env.VITE_ANTHROPIC_API_KEY;
+      if (!apiKey) {
+        throw new Error('API key not found. Please set VITE_ANTHROPIC_API_KEY in your environment.');
+      }
+      
+      const result = await processExtractedText(extractedText, apiKey);
       setResponse(result);
 
       // Save to history
