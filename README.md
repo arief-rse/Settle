@@ -1,69 +1,40 @@
-# Welcome to your Lovable project
+# Text Extractor Chrome Extension
 
-## Project info
+A Chrome extension that allows you to extract text from any webpage using OCR technology. Simply select an area on the page, and the extension will extract and display the text content.
 
-**URL**: https://lovable.dev/projects/e516d192-da88-4fa8-b05c-46b5537c61f2
+## Features
 
-## How can I edit this code?
+- Works on any webpage
+- Simple selection interface
+- OCR-powered text extraction
+- Instant results display
 
-There are several ways of editing your application.
+## Installation
 
-**Use Lovable**
+1. Clone this repository
+2. Install dependencies:
+   ```bash
+   npm install
+   ```
+3. Build the extension:
+   ```bash
+   npm run build
+   ```
+4. Load the extension in Chrome:
+   - Open Chrome and go to `chrome://extensions/`
+   - Enable "Developer mode"
+   - Click "Load unpacked"
+   - Select the `dist` directory from this project
 
-Simply visit the [Lovable Project](https://lovable.dev/projects/e516d192-da88-4fa8-b05c-46b5537c61f2) and start prompting.
+## Usage
 
-Changes made via Lovable will be committed automatically to this repo.
+1. Click the extension icon in Chrome
+2. Draw a rectangle around the text you want to extract
+3. The extracted text will appear in a floating box
+4. The text will disappear after 5 seconds
 
-**Use your preferred IDE**
+## Development
 
-If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
-
-The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
-
-Follow these steps:
-
-```sh
-# Step 1: Clone the repository using the project's Git URL.
-git clone <YOUR_GIT_URL>
-
-# Step 2: Navigate to the project directory.
-cd <YOUR_PROJECT_NAME>
-
-# Step 3: Install the necessary dependencies.
-npm i
-
-# Step 4: Start the development server with auto-reloading and an instant preview.
-npm run dev
-```
-
-**Edit a file directly in GitHub**
-
-- Navigate to the desired file(s).
-- Click the "Edit" button (pencil icon) at the top right of the file view.
-- Make your changes and commit the changes.
-
-**Use GitHub Codespaces**
-
-- Navigate to the main page of your repository.
-- Click on the "Code" button (green button) near the top right.
-- Select the "Codespaces" tab.
-- Click on "New codespace" to launch a new Codespace environment.
-- Edit files directly within the Codespace and commit and push your changes once you're done.
-
-## What technologies are used for this project?
-
-This project is built with .
-
-- Vite
-- TypeScript
-- React
-- shadcn-ui
-- Tailwind CSS
-
-## How can I deploy this project?
-
-Simply open [Lovable](https://lovable.dev/projects/e516d192-da88-4fa8-b05c-46b5537c61f2) and click on Share -> Publish.
-
-## I want to use a custom domain - is that possible?
-
-We don't support custom domains (yet). If you want to deploy your project under your own domain then we recommend using Netlify. Visit our docs for more details: [Custom domains](https://docs.lovable.dev/tips-tricks/custom-domain/)
+- `npm run dev` - Start development server
+- `npm run build` - Build the extension
+- `npm run lint` - Lint the code

@@ -1,5 +1,4 @@
 import { createWorker } from "tesseract.js";
-import { toast } from "sonner";
 import { Position } from "../types/selection";
 
 export const extractTextFromSelection = async (

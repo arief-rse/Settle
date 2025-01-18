@@ -1,41 +1,26 @@
-import { defineConfig } from "vite";
-import react from "@vitejs/plugin-react-swc";
-import path from "path";
-import { componentTagger } from "lovable-tagger";
+import { defineConfig } from 'vite';
+import { resolve } from 'path';
 
-export default defineConfig(({ mode }) => ({
-  server: {
-    host: "::",
-    port: 8080,
-    proxy: {
-      '/api/anthropic': {
-        target: 'https://api.anthropic.com',
-        changeOrigin: true,
-        rewrite: (path) => path.replace(/^\/api\/anthropic/, ''),
-        headers: {
-          'Access-Control-Allow-Origin': '*',
-        },
+export default defineConfig({
+  build: {
+    rollupOptions: {
+      input: {
+        background: resolve(__dirname, 'src/background.ts'),
+        content: resolve(__dirname, 'src/content.ts'),
+        popup: resolve(__dirname, 'src/popup.ts')
       },
+      output: {
+        entryFileNames: '[name].js',
+        format: 'es'
+      }
     },
+    outDir: 'dist',
+    emptyOutDir: true
   },
-  plugins: [
-    react(),
-    mode === 'development' &&
-    componentTagger(),
-  ].filter(Boolean),
   resolve: {
     alias: {
-      "@": path.resolve(__dirname, "./src"),
-    },
-  },
-  build: {
-    outDir: 'dist',
-    rollupOptions: {
-      output: {
-        entryFileNames: `assets/[name].js`,
-        chunkFileNames: `assets/[name].js`,
-        assetFileNames: `assets/[name].[ext]`
-      }
+      '@': resolve(__dirname, './src')
     }
-  }
-}));
+  },
+  publicDir: 'public'
+});
