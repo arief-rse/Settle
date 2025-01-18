@@ -1,40 +1,33 @@
-import { createRoot } from 'react-dom/client';
-import SelectionTool from './components/SelectionTool';
+import React from 'react'
+import { createRoot } from 'react-dom/client'
+import { Toaster } from 'sonner'
+import SelectionTool from './components/SelectionTool'
+
+// Check if Chrome APIs are available
+const isChromeExtension = typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.id
 
 // Create container for React component
-function createSelectionToolContainer(): HTMLDivElement {
-  const container = document.createElement('div');
-  container.id = 'selection-tool-container';
-  document.body.appendChild(container);
-  return container;
-}
+const container = document.createElement('div')
+container.id = 'text-extractor-overlay'
+document.body.appendChild(container)
 
-// Listen for messages from extension
-chrome.runtime.onMessage.addListener((message) => {
-  if (message.type === 'TOGGLE_SELECTION') {
-    if (message.payload) {
-      // Create container and mount React component
-      const container = createSelectionToolContainer();
-      const root = createRoot(container);
-      
-      root.render(
-        <SelectionTool
-          onComplete={(text) => {
-            chrome.runtime.sendMessage({
-              type: 'EXTRACTION_COMPLETE',
-              payload: text
-            });
-            // Cleanup
-            root.unmount();
-            container.remove();
-          }}
-          onCancel={() => {
-            // Cleanup
-            root.unmount();
-            container.remove();
-          }}
-        />
-      );
+// Create root and render app
+const root = createRoot(container)
+root.render(
+  <React.StrictMode>
+    <Toaster position="top-center" />
+    <SelectionTool />
+  </React.StrictMode>
+)
+
+// Listen for messages from the extension
+if (isChromeExtension) {
+  chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
+    if (message.type === 'EXTRACT_TEXT') {
+      // Handle text extraction
+      sendResponse({ success: true })
     }
-  }
-});
+  })
+} else {
+  console.warn('Chrome extension APIs not available. Some features may not work.')
+}

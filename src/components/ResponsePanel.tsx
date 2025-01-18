@@ -4,94 +4,99 @@ import { Card } from "./ui/card";
 import { useState } from "react";
 import { processExtractedText } from "@/lib/aiProcessor";
 import { toast } from "sonner";
+import { Input } from "./ui/input";
 
 interface ResponsePanelProps {
-  text: string;
+  extractedText: string;
   onClose: () => void;
 }
 
-const ResponsePanel = ({ text, onClose }: ResponsePanelProps) => {
-  const [aiResponse, setAiResponse] = useState<string>("");
-  const [apiKey, setApiKey] = useState("");
+const ResponsePanel = ({ extractedText, onClose }: ResponsePanelProps) => {
+  const [apiKey, setApiKey] = useState(localStorage.getItem("ANTHROPIC_API_KEY") || "");
   const [isProcessing, setIsProcessing] = useState(false);
+  const [aiResponse, setAiResponse] = useState<string>("");
 
   const handleProcessText = async () => {
     if (!apiKey) {
       toast.error("Please enter your Anthropic API key first");
       return;
     }
-    
+
+    localStorage.setItem("ANTHROPIC_API_KEY", apiKey);
     setIsProcessing(true);
+
     try {
-      const response = await processExtractedText(text);
+      const response = await processExtractedText(extractedText);
       setAiResponse(response);
-      
+
       // Add to history in localStorage
       const history = JSON.parse(localStorage.getItem("analysisHistory") || "[]");
       const newAnalysis = {
-        text,
+        text: extractedText,
         response,
-        timestamp: new Date()
+        timestamp: new Date(),
       };
-      localStorage.setItem("analysisHistory", JSON.stringify([newAnalysis, ...history].slice(0, 10)));
-      
-      toast.success("Text analyzed successfully");
+
+      localStorage.setItem(
+        "analysisHistory",
+        JSON.stringify([newAnalysis, ...history])
+      );
+      toast.success("Analysis complete!");
     } catch (error) {
-      if (error instanceof Error) {
-        toast.error(error.message);
-      } else {
-        toast.error("Failed to process text with AI");
-      }
+      console.error(error);
+      toast.error(error instanceof Error ? error.message : "Failed to process text");
     } finally {
       setIsProcessing(false);
     }
   };
 
-  const handleApiKeyChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const newKey = e.target.value;
-    setApiKey(newKey);
-    localStorage.setItem("ANTHROPIC_API_KEY", newKey);
-  };
-
-  const handleClose = () => {
-    setAiResponse(""); 
-    onClose();
-  };
-
   return (
-    <Card className="fixed bottom-8 right-8 w-96 p-4 shadow-xl animate-in slide-in-from-right">
+    <Card className="w-96 p-4 shadow-xl animate-in slide-in-from-right">
       <div className="flex justify-between items-start mb-4">
-        <h3 className="font-semibold">Extracted Text</h3>
-        <Button variant="ghost" size="icon" onClick={handleClose}>
+        <h3 className="font-semibold">Text Analysis</h3>
+        <Button variant="ghost" size="icon" onClick={onClose}>
           <X className="h-4 w-4" />
         </Button>
       </div>
-      <p className="text-sm text-gray-600 whitespace-pre-wrap mb-4">{text}</p>
-      
+
       <div className="space-y-4">
-        <div className="space-y-2">
-          <label className="text-sm font-medium">Anthropic API Key</label>
-          <input
-            type="password"
-            value={apiKey}
-            onChange={handleApiKeyChange}
-            className="w-full px-3 py-2 border rounded-md text-sm"
-            placeholder="Enter your API key"
-          />
+        <div>
+          <label className="block text-sm font-medium mb-1">
+            Selected Text:
+          </label>
+          <p className="text-sm bg-gray-50 p-2 rounded">{extractedText}</p>
         </div>
-        
-        <Button 
-          onClick={handleProcessText} 
-          disabled={isProcessing}
-          className="w-full"
-        >
-          {isProcessing ? "Processing..." : "Analyze Text"}
-        </Button>
+
+        {!aiResponse && (
+          <>
+            <div>
+              <label className="block text-sm font-medium mb-1">
+                Anthropic API Key:
+              </label>
+              <Input
+                type="password"
+                value={apiKey}
+                onChange={(e) => setApiKey(e.target.value)}
+                placeholder="Enter your API key"
+              />
+            </div>
+
+            <Button
+              className="w-full"
+              onClick={handleProcessText}
+              disabled={isProcessing}
+            >
+              {isProcessing ? "Processing..." : "Analyze Text"}
+            </Button>
+          </>
+        )}
 
         {aiResponse && (
-          <div className="mt-4">
-            <h4 className="font-semibold mb-2">AI Analysis:</h4>
-            <p className="text-sm text-gray-600">{aiResponse}</p>
+          <div>
+            <label className="block text-sm font-medium mb-1">Analysis:</label>
+            <div className="bg-gray-50 p-2 rounded text-sm whitespace-pre-wrap">
+              {aiResponse}
+            </div>
           </div>
         )}
       </div>

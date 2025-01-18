@@ -1,38 +1,33 @@
-import { extractTextFromSelection } from './services/textExtractor';
+// Store the last extracted text
+let lastExtractedText: string | null = null
 
 // Handle extension icon click
 chrome.action.onClicked.addListener(async (tab) => {
-  if (!tab.id) return;
-  
-  // Toggle selection mode in content script
-  chrome.tabs.sendMessage(tab.id, {
+  if (!tab.id) return
+
+  // Toggle selection mode
+  await chrome.tabs.sendMessage(tab.id, {
     type: 'TOGGLE_SELECTION',
     payload: true
-  });
-});
+  })
+})
 
 // Handle messages from content script
-chrome.runtime.onMessage.addListener(async (message, sender) => {
-  if (message.type === 'EXTRACT_TEXT' && sender.tab?.id) {
-    try {
-      const text = await extractTextFromSelection(
-        message.payload.startPos,
-        message.payload.endPos
-      );
-      
-      // Send extracted text back to content script
-      chrome.tabs.sendMessage(sender.tab.id, {
-        type: 'EXTRACTION_COMPLETE',
-        payload: text
-      });
-      
-      // Turn off selection mode
-      chrome.tabs.sendMessage(sender.tab.id, {
-        type: 'TOGGLE_SELECTION',
-        payload: false
-      });
-    } catch (error) {
-      console.error('Text extraction failed:', error);
-    }
+chrome.runtime.onMessage.addListener((message) => {
+  if (message.type === 'EXTRACTED_TEXT') {
+    // Store the text
+    lastExtractedText = message.payload
+    // Forward to popup if it's open
+    chrome.runtime.sendMessage(message)
   }
-});
+  // Always return true for async response
+  return true
+})
+
+// Listen for messages from popup
+chrome.runtime.onMessage.addListener((_message, _sender, sendResponse) => {
+  if (_message.type === 'GET_LAST_TEXT') {
+    sendResponse({ text: lastExtractedText })
+  }
+  return true
+})
