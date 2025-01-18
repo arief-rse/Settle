@@ -1,47 +1,30 @@
-import { Anthropic } from "@anthropic-ai/sdk";
-
-export const processExtractedText = async (text: string): Promise<string> => {
-  const apiKey = localStorage.getItem("ANTHROPIC_API_KEY");
-
-  if (!apiKey) {
-    throw new Error("API key is missing");
-  }
-
+export const processExtractedText = async (text: string, apiKey: string): Promise<string> => {
   try {
-    const anthropic = new Anthropic({
-      apiKey: apiKey,
-      dangerouslyAllowBrowser: true,
+    const response = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': apiKey,
+        'anthropic-version': '2023-06-01'
+      },
+      body: JSON.stringify({
+        model: 'claude-3-opus-20240229',
+        max_tokens: 1024,
+        messages: [{
+          role: 'user',
+          content: `Analyze this text and provide insights: ${text}`
+        }]
+      })
     });
 
-    const message = await anthropic.messages.create({
-      model: "claude-3-opus-20240229",
-      max_tokens: 1024,
-      messages: [
-        {
-          role: "user",
-          content: `Here is the text that was selected: "${text}"
-
-Instructions:
-1. IMPORTANT: Only analyze the exact text that was selected. Do not try to infer or look at surrounding context.
-2. Analyze the text and provide a concise summary of its main points.
-3. If there are any key insights or important details, highlight them.
-
-Format your response in a clear, easy-to-read manner.`,
-        },
-      ],
-    });
-
-    const content = message.content[0];
-    if ("text" in content) {
-      return content.text;
+    if (!response.ok) {
+      throw new Error(`API request failed with status ${response.status}`);
     }
 
-    throw new Error("Unexpected response format from AI");
+    const data = await response.json();
+    return data.content[0].text;
   } catch (error) {
-    console.error("AI Processing error:", error);
-    if (error instanceof Error) {
-      throw new Error(`AI Processing failed: ${error.message}`);
-    }
-    throw new Error("AI Processing failed with an unknown error");
+    console.error('Error processing text with AI:', error);
+    throw error;
   }
 };
