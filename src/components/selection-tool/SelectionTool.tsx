@@ -6,7 +6,7 @@ import SelectionOverlay from "./components/SelectionOverlay";
 
 // Add CSS styles directly to the document
 const injectStyles = () => {
-  const style = document.createElement('style');
+  const style = document.createElement("style");
   style.textContent = `
     .selection-overlay {
       position: fixed;
@@ -48,7 +48,7 @@ const SelectionTool = () => {
     setIsSelecting(true); // Start selection immediately when component mounts
 
     const handleMessage = (message: any) => {
-      if (message.type === 'START_SELECTION') {
+      if (message.type === "START_SELECTION") {
         setIsSelecting(true);
       }
     };
@@ -57,19 +57,22 @@ const SelectionTool = () => {
     return () => chrome.runtime.onMessage.removeListener(handleMessage);
   }, []);
 
-  const handleSelectionComplete = async (startPos: Position, endPos: Position) => {
+  const handleSelectionComplete = async (
+    startPos: Position,
+    endPos: Position
+  ) => {
     try {
       const text = await extractTextFromSelection(startPos, endPos);
       if (text) {
         // Send the selected text back to the popup
-        chrome.runtime.sendMessage({ 
-          type: 'TEXT_SELECTED', 
+        chrome.runtime.sendMessage({
+          type: "TEXT_SELECTED",
           text,
-          timestamp: new Date().toISOString()
+          timestamp: new Date().toISOString(),
         });
-        
+
         // Clean up after successful selection
-        const container = document.getElementById('text-extractor-overlay');
+        const container = document.getElementById("text-extractor-overlay");
         if (container && container.parentNode) {
           container.parentNode.removeChild(container);
         }
@@ -83,7 +86,7 @@ const SelectionTool = () => {
 
   const handleCancel = () => {
     setIsSelecting(false);
-    const container = document.getElementById('text-extractor-overlay');
+    const container = document.getElementById("text-extractor-overlay");
     if (container && container.parentNode) {
       container.parentNode.removeChild(container);
     }

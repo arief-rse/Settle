@@ -1,7 +1,7 @@
 import { StrictMode} from 'react'
 import { createRoot } from 'react-dom/client'
 import { Toaster } from 'sonner'
-import SelectionTool from './components/selection-tool'
+import SelectionTool from './components/selection-tool/SelectionTool'
 import './index.css'
 
 // Check if Chrome APIs are available

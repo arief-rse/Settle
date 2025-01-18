@@ -11,7 +11,7 @@ export default defineConfig({
     cssMinify: true,
     rollupOptions: {
       input: {
-        popup: resolve(__dirname, "src/popup.tsx"),
+        popup: resolve(__dirname, "src/index.tsx"),
         content: resolve(__dirname, "src/content.tsx"),
         background: resolve(__dirname, "src/background.ts"),
       },
