@@ -190,11 +190,14 @@ import { createRoot } from 'react-dom/client';
   const isChromeExtension = typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.id;
 
   if (isChromeExtension) {
-    // Clean up when the content script is unloaded
-    window.addEventListener('unload', cleanupReactApp);
-
+    // Handle messages from the extension
     chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
-      console.log('Received message:', message);
+      if (message.type === 'PING') {
+        // Respond to ping to confirm content script is loaded
+        sendResponse(true);
+        return true;
+      }
+
       if (message.type === 'START_SELECTION') {
         console.log('Starting selection...');
         injectReactApp();
@@ -203,6 +206,9 @@ import { createRoot } from 'react-dom/client';
       // Keep the message channel open
       return true;
     });
+
+    // Clean up when the content script is unloaded
+    window.addEventListener('unload', cleanupReactApp);
   } else {
     console.warn('Chrome extension APIs not available. Some features may not work.');
   }

@@ -1,4 +1,5 @@
-import { Avatar, AvatarFallback, AvatarImage } from "../../ui/avatar";
+import { useEffect, useState } from "react";
+import { Button } from "../../ui/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -7,34 +8,121 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "../../ui/dropdown-menu";
-import { Settings, LogOut, User } from "lucide-react";
+import { User, Settings, LogOut, LogIn, Mail } from "lucide-react";
+import { supabase, signInWithGoogle, signOut, getCurrentUser } from "../../../lib/supabase";
+import type { User as SupabaseUser, Session } from '@supabase/supabase-js';
+import { AuthDialog } from "./AuthDialog";
+import { toast } from "sonner";
 
 export function UserMenu() {
+  const [user, setUser] = useState<SupabaseUser | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [showAuthDialog, setShowAuthDialog] = useState(false);
+
+  useEffect(() => {
+    checkUser();
+    const { data: authListener } = supabase.auth.onAuthStateChange(async (_event: string, session: Session | null) => {
+      if (session?.user) {
+        setUser(session.user);
+      } else {
+        setUser(null);
+      }
+    });
+
+    return () => {
+      authListener?.subscription.unsubscribe();
+    };
+  }, []);
+
+  const checkUser = async () => {
+    try {
+      const { user: currentUser } = await getCurrentUser();
+      setUser(currentUser);
+    } catch (error) {
+      console.error('Error checking user:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSignInWithGoogle = async () => {
+    try {
+      const { error } = await signInWithGoogle();
+      if (error) throw error;
+    } catch (error) {
+      console.error('Error signing in:', error);
+      toast.error('Failed to sign in with Google');
+    }
+  };
+
+  const handleSignOut = async () => {
+    try {
+      const { error } = await signOut();
+      if (error) throw error;
+      toast.success('Successfully signed out');
+    } catch (error) {
+      console.error('Error signing out:', error);
+      toast.error('Failed to sign out');
+    }
+  };
+
+  if (loading) {
+    return (
+      <Button variant="ghost" size="icon" disabled>
+        <User className="h-5 w-5" />
+      </Button>
+    );
+  }
+
   return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <Avatar className="h-8 w-8 cursor-pointer hover:opacity-80">
-          <AvatarImage src="https://github.com/shadcn.png" alt="@shadcn" />
-          <AvatarFallback>CN</AvatarFallback>
-        </Avatar>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-56">
-        <DropdownMenuLabel>My Account</DropdownMenuLabel>
-        <DropdownMenuSeparator />
-        <DropdownMenuItem className="cursor-pointer">
-          <User className="mr-2 h-4 w-4" />
-          <span>Profile</span>
-        </DropdownMenuItem>
-        <DropdownMenuItem className="cursor-pointer">
-          <Settings className="mr-2 h-4 w-4" />
-          <span>Settings</span>
-        </DropdownMenuItem>
-        <DropdownMenuSeparator />
-        <DropdownMenuItem className="cursor-pointer text-red-600 focus:text-red-600">
-          <LogOut className="mr-2 h-4 w-4" />
-          <span>Log out</span>
-        </DropdownMenuItem>
-      </DropdownMenuContent>
-    </DropdownMenu>
+    <>
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button variant="ghost" size="icon">
+            <User className="h-5 w-5" />
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end">
+          {user ? (
+            <>
+              <DropdownMenuLabel>
+                <div className="flex flex-col">
+                  <span>{user.email}</span>
+                  <span className="text-xs text-muted-foreground">
+                    {user.app_metadata.provider === 'google' ? 'Signed in with Google' : 'Signed in with Email'}
+                  </span>
+                </div>
+              </DropdownMenuLabel>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={() => window.open(chrome.runtime.getURL('options.html'), '_blank')}>
+                <Settings className="mr-2 h-4 w-4" />
+                <span>Settings</span>
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={handleSignOut}>
+                <LogOut className="mr-2 h-4 w-4" />
+                <span>Sign Out</span>
+              </DropdownMenuItem>
+            </>
+          ) : (
+            <>
+              <DropdownMenuLabel>Sign in to use Text Analyzer</DropdownMenuLabel>
+              <DropdownMenuItem onClick={() => setShowAuthDialog(true)}>
+                <Mail className="mr-2 h-4 w-4" />
+                <span>Sign in with Email</span>
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={handleSignInWithGoogle}>
+                <LogIn className="mr-2 h-4 w-4" />
+                <span>Sign in with Google</span>
+              </DropdownMenuItem>
+            </>
+          )}
+        </DropdownMenuContent>
+      </DropdownMenu>
+
+      <AuthDialog 
+        open={showAuthDialog} 
+        onOpenChange={setShowAuthDialog} 
+      />
+    </>
   );
 }
