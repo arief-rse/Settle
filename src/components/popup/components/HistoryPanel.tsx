@@ -1,92 +1,108 @@
-import { useState } from "react";
-import { Clock, Trash2 } from "lucide-react";
+import { useState, useEffect } from "react";
+import { X, Clock, Loader2 } from "lucide-react";
 import { Button } from "../../ui/button";
-import { ScrollArea } from "../../ui/scroll-area";
-
-interface AnalysisHistory {
-  text: string;
-  response: string;
-  timestamp: string;
-}
+import { Card } from "../../ui/card";
+import { getAnalysisHistory, isAuthenticated } from "../../../lib/supabase";
+import { toast } from "sonner";
 
 interface HistoryPanelProps {
   onClose: () => void;
 }
 
+interface HistoryItem {
+  id: string;
+  text: string;
+  response: string;
+  timestamp: string;
+}
+
 const HistoryPanel = ({ onClose }: HistoryPanelProps) => {
-  const [isExpanded, setIsExpanded] = useState(true);
-  const history: AnalysisHistory[] = JSON.parse(localStorage.getItem("analysisHistory") || "[]");
+  const [isLoading, setIsLoading] = useState(true);
+  const [history, setHistory] = useState<HistoryItem[]>([]);
 
-  const clearHistory = () => {
-    localStorage.setItem("analysisHistory", "[]");
-    window.location.reload();
-  };
+  useEffect(() => {
+    const loadHistory = async () => {
+      // Check authentication first
+      const authResult = await isAuthenticated();
+      if (!authResult.isLoggedIn) {
+        toast.error('Please log in to view history');
+        onClose();
+        return;
+      }
 
-  if (!isExpanded) {
-    return (
-      <button
-        onClick={() => setIsExpanded(true)}
-        className="fixed bottom-8 left-8 p-3 bg-white rounded-full shadow-lg hover:bg-gray-50 transition-all duration-200 z-[2147483647]"
-      >
-        <Clock className="w-6 h-6 text-indigo-600" />
-      </button>
-    );
-  }
+      try {
+        const result = await getAnalysisHistory();
+        if (result.error) {
+          toast.error(result.error.message);
+        } else if (result.data) {
+          setHistory(result.data);
+        }
+      } catch (err) {
+        toast.error('Failed to load history');
+      } finally {
+        setIsLoading(false);
+      }
+    };
 
-  if (history.length === 0) {
-    return (
-      <div className="flex flex-col items-center justify-center h-[300px] text-gray-500">
-        <Clock className="h-8 w-8 mb-2" />
-        <p>No analysis history yet</p>
-      </div>
-    );
-  }
+    loadHistory();
+  }, [onClose]);
 
   return (
-    <div className="space-y-4">
-      <div className="flex justify-between">
-        <h3 className="text-lg font-semibold">Analysis History</h3>
-        <div className="flex gap-2">
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => setIsExpanded(false)}
-            className="text-gray-400 hover:text-gray-600 transition-colors"
-          >
-            <Clock className="h-4 w-4" />
-          </Button>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={onClose}
-            className="text-gray-400 hover:text-red-500 hover:bg-red-50"
-          >
-            <Clock className="h-4 w-4" />
-          </Button>
+    <Card className="w-full max-w-2xl">
+      <div className="flex items-center justify-between p-4 border-b bg-gray-50/50">
+        <div className="flex items-center gap-2">
+          <Clock className="h-4 w-4 text-gray-500" />
+          <h3 className="text-lg font-semibold">Analysis History</h3>
         </div>
-      </div>
-      <div className="flex justify-end">
-        <Button variant="ghost" size="sm" onClick={clearHistory} className="text-red-600 hover:text-red-700">
-          <Trash2 className="h-4 w-4 mr-2" />
-          Clear History
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={onClose}
+          className="text-gray-400 hover:text-red-500 hover:bg-red-50"
+        >
+          <X className="h-4 w-4" />
         </Button>
       </div>
-      
-      <ScrollArea className="h-[300px]">
-        {history.map((item, index) => (
-          <div
-            key={index}
-            className="p-4 border-b last:border-0 hover:bg-gray-50 transition-colors"
-          >
-            <p className="text-sm text-gray-500 mb-1">
-              {new Date(item.timestamp).toLocaleString()}
-            </p>
-            <p className="text-sm line-clamp-2">{item.text}</p>
-            <p className="text-sm text-gray-600 line-clamp-3">{item.response}</p>
+
+      <div className="p-4">
+        {isLoading ? (
+          <div className="flex items-center justify-center py-8">
+            <Loader2 className="h-8 w-8 animate-spin text-indigo-600" />
           </div>
-        ))}
-      </ScrollArea>
-    </div>
+        ) : history.length === 0 ? (
+          <div className="text-center py-8 text-gray-500">
+            No analysis history found
+          </div>
+        ) : (
+          <div className="space-y-4">
+            {history.map((item) => (
+              <div
+                key={item.id}
+                className="border rounded-lg p-4 space-y-3 hover:bg-gray-50/50 transition-colors"
+              >
+                <div className="flex justify-between items-start">
+                  <div className="text-sm text-gray-500">
+                    {new Date(item.timestamp).toLocaleString()}
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <div className="text-sm font-medium">Selected Text:</div>
+                  <div className="text-sm text-gray-700 bg-white p-3 rounded border">
+                    {item.text}
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <div className="text-sm font-medium">Analysis:</div>
+                  <div className="text-sm text-gray-700 bg-white p-3 rounded border whitespace-pre-wrap">
+                    {item.response}
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </Card>
   );
 };
 

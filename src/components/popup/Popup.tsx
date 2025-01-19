@@ -122,7 +122,7 @@ const Popup = () => {
       <div className="w-[400px] h-[600px] p-4">
         <Card className="w-full h-full">
           <div className="flex items-center justify-between p-4 border-b">
-            <h1 className="text-xl font-bold">Text Analyzer</h1>
+            <h1 className="text-xl font-bold">Settle</h1>
             <div className="flex items-center gap-2">
               <ThemeToggle />
               <UserMenu />

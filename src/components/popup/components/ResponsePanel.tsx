@@ -1,9 +1,11 @@
-import { useState } from "react";
-import { X, MessageCircle } from "lucide-react";
+import { useState, useEffect } from "react";
+import { X, MessageCircle, Lock } from "lucide-react";
 import { Button } from "../../ui/button";
 import { Card } from "../../ui/card";
 import { processExtractedText } from "../../../lib/ai-processor";
+import { saveAnalysisHistory, getAnalysisHistory, isAuthenticated } from "../../../lib/supabase";
 import { Loader2 } from "lucide-react";
+import { toast } from "sonner";
 
 interface ResponsePanelProps {
   extractedText: string;
@@ -16,6 +18,30 @@ const ResponsePanel = ({ extractedText, onClose, onHistory }: ResponsePanelProps
   const [isLoading, setIsLoading] = useState(false);
   const [response, setResponse] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [isUserLoggedIn, setIsUserLoggedIn] = useState(false);
+  const [analysisHistory, setAnalysisHistory] = useState<any[]>([]);
+
+  useEffect(() => {
+    const checkAuthentication = async () => {
+      const authResult = await isAuthenticated();
+      setIsUserLoggedIn(authResult.isLoggedIn);
+
+      // If logged in, fetch analysis history
+      if (authResult.isLoggedIn) {
+        try {
+          const historyResult = await getAnalysisHistory();
+          if (historyResult.data) {
+            setAnalysisHistory(historyResult.data);
+          } else if (historyResult.error) {
+            toast.error(historyResult.error.message);
+          }
+        } catch (err) {
+          toast.error('Failed to fetch analysis history');
+        }
+      }
+    };
+    checkAuthentication();
+  }, []);
 
   const handleAnalyze = async () => {
     setIsLoading(true);
@@ -29,16 +55,30 @@ const ResponsePanel = ({ extractedText, onClose, onHistory }: ResponsePanelProps
       const result = await processExtractedText(extractedText, apiKey);
       setResponse(result);
 
-      // Save to history
-      const history = JSON.parse(localStorage.getItem("analysisHistory") || "[]");
-      history.unshift({
-        text: extractedText,
-        response: result,
-        timestamp: new Date().toISOString()
-      });
-      localStorage.setItem("analysisHistory", JSON.stringify(history.slice(0, 50))); // Keep last 50 items
+      // Only save to history if user is logged in
+      if (isUserLoggedIn) {
+        const saveResult = await saveAnalysisHistory({
+          text: extractedText,
+          response: result,
+          timestamp: new Date().toISOString()
+        });
+
+        if (saveResult.error) {
+          toast.error(saveResult.error.message);
+        } else if (saveResult.notification) {
+          toast.success(saveResult.notification.message);
+          
+          // Update local history state if save is successful
+          if (saveResult.data) {
+            setAnalysisHistory(prev => [saveResult.data[0], ...prev]);
+          }
+        }
+      } else {
+        toast.error('Please log in to save your analysis history');
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to analyze text");
+      toast.error(err instanceof Error ? err.message : "Failed to analyze text");
     } finally {
       setIsLoading(false);
     }
@@ -113,9 +153,16 @@ const ResponsePanel = ({ extractedText, onClose, onHistory }: ResponsePanelProps
           <div className="space-y-3">
             <div className="flex items-center justify-between">
               <h4 className="font-medium text-sm text-gray-600">Analysis</h4>
-              <Button variant="ghost" size="sm" onClick={onHistory}>
-                View History
-              </Button>
+              {isUserLoggedIn ? (
+                <Button variant="ghost" size="sm" onClick={onHistory}>
+                  View History ({analysisHistory.length})
+                </Button>
+              ) : (
+                <div className="flex items-center gap-2 text-gray-500 text-sm">
+                  <Lock className="h-4 w-4" />
+                  <span>Login to view history</span>
+                </div>
+              )}
             </div>
             <div className="p-4 bg-white border rounded-lg text-sm whitespace-pre-wrap">
               {response}
