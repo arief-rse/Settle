@@ -66,6 +66,27 @@ export default defineConfig(({ mode }) => {
     };
   }
 
+  if (mode === 'auth') {
+    return {
+      ...commonConfig,
+      build: {
+        outDir: "dist",
+        emptyOutDir: false,
+        rollupOptions: {
+          input: resolve(__dirname, "src/pages/auth/index.tsx"),
+          output: {
+            entryFileNames: 'auth.js',
+            format: 'iife',
+            assetFileNames: (assetInfo) => {
+              if (assetInfo.name === 'style.css') return 'auth.css';
+              return `assets/${assetInfo.name}`;
+            },
+          },
+        },
+      },
+    };
+  }
+
   return {
     ...commonConfig,
     build: {
