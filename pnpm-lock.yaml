@@ -96,11 +96,8 @@ importers:
         specifier: ^1.0.7
         version: 1.1.6(@types/react-dom@18.3.5(@types/react@18.3.18))(@types/react@18.3.18)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
       '@stripe/stripe-js':
-        specifier: ^2.4.0
-        version: 2.4.0
-      '@supabase/supabase-js':
-        specifier: ^2.47.16
-        version: 2.47.16
+        specifier: ^5.5.0
+        version: 5.5.0
       class-variance-authority:
         specifier: ^0.7.0
         version: 0.7.1
@@ -162,11 +159,14 @@ importers:
         specifier: ^0.8.0
         version: 0.8.9(@types/react-dom@18.3.5(@types/react@18.3.18))(@types/react@18.3.18)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
     devDependencies:
+      '@supabase/supabase-js':
+        specifier: ^2.47.16
+        version: 2.47.16
       '@types/chrome':
         specifier: ^0.0.254
         version: 0.0.254
       '@types/node':
-        specifier: ^20.10.4
+        specifier: ^20.17.14
         version: 20.17.14
       '@types/react':
         specifier: ^18.2.37
@@ -202,7 +202,7 @@ importers:
         specifier: ^8.4.32
         version: 8.5.1
       supabase:
-        specifier: '>=1.8.1'
+        specifier: ^2.6.8
         version: 2.6.8
       tailwindcss:
         specifier: ^3.3.6
@@ -1490,8 +1490,9 @@ packages:
     cpu: [x64]
     os: [win32]
 
-  '@stripe/stripe-js@2.4.0':
-    resolution: {integrity: sha512-WFkQx1mbs2b5+7looI9IV1BLa3bIApuN3ehp9FP58xGg7KL9hCHDECgW3BwO9l9L+xBPVAD7Yjn1EhGe6EDTeA==}
+  '@stripe/stripe-js@5.5.0':
+    resolution: {integrity: sha512-lkfjyAd34aeMpTKKcEVfy8IUyEsjuAT3t9EXr5yZDtdIUncnZpedl/xLV16Dkd4z+fQwixScsCCDxSMNtBOgpQ==}
+    engines: {node: '>=12.16'}
 
   '@supabase/auth-js@2.67.3':
     resolution: {integrity: sha512-NJDaW8yXs49xMvWVOkSIr8j46jf+tYHV0wHhrwOaLLMZSFO4g6kKAf+MfzQ2RaD06OCUkUHIzctLAxjTgEVpzw==}
@@ -4559,7 +4560,7 @@ snapshots:
   '@rollup/rollup-win32-x64-msvc@4.30.1':
     optional: true
 
-  '@stripe/stripe-js@2.4.0': {}
+  '@stripe/stripe-js@5.5.0': {}
 
   '@supabase/auth-js@2.67.3':
     dependencies:
