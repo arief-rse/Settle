@@ -4,7 +4,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc && vite build && vite build --mode content && vite build --mode background && vite build --mode auth && powershell -Command \"Copy-Item -Path public/manifest.json,public/index.html,public/auth.html -Destination dist/\"",
+    "build": "tsc && vite build && vite build --mode content && vite build --mode background && vite build --mode auth && vite build --mode payment && powershell -Command \"Copy-Item -Path public/manifest.json,public/index.html,public/auth.html,public/payment.html -Destination dist/; New-Item -ItemType Directory -Force -Path dist/icons; Copy-Item -Path public/icons/* -Destination dist/icons/ -Force; New-Item -ItemType Directory -Force -Path dist/assets; New-Item -ItemType Directory -Force -Path dist/chunks\"",
     "preview": "vite preview",
     "lint": "eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0"
   },
@@ -38,7 +38,7 @@
     "@radix-ui/react-toggle": "^1.0.3",
     "@radix-ui/react-toggle-group": "^1.0.4",
     "@radix-ui/react-tooltip": "^1.0.7",
-    "@stripe/stripe-js": "^5.5.0",
+    "@stripe/stripe-js": "^2.4.0",
     "class-variance-authority": "^0.7.0",
     "clsx": "^2.0.0",
     "cmdk": "^0.2.0",
@@ -58,7 +58,10 @@
     "tailwind-merge": "^2.1.0",
     "tailwindcss-animate": "^1.0.7",
     "tesseract.js": "^4.1.1",
-    "vaul": "^0.8.0"
+    "vaul": "^0.8.0",
+    "stripe": "^14.14.0",
+    "micro": "^10.0.1",
+    "@types/micro": "^7.3.7"
   },
   "devDependencies": {
     "@types/chrome": "^0.0.254",

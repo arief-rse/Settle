@@ -36,7 +36,7 @@ export default defineConfig(({ mode }) => {
           output: {
             extend: true,
             assetFileNames: (assetInfo) => {
-              if (assetInfo.name === 'style.css') return 'style.css';
+              if (assetInfo.name === 'style.css') return 'content.css';
               return `assets/${assetInfo.name}`;
             },
           },
@@ -73,12 +73,37 @@ export default defineConfig(({ mode }) => {
         outDir: "dist",
         emptyOutDir: false,
         rollupOptions: {
-          input: resolve(__dirname, "src/pages/auth/index.tsx"),
+          input: {
+            auth: resolve(__dirname, "src/pages/auth/index.tsx")
+          },
           output: {
-            entryFileNames: 'auth.js',
-            format: 'iife',
+            entryFileNames: 'chunks/[name].js',
+            chunkFileNames: 'chunks/[name].[hash].js',
             assetFileNames: (assetInfo) => {
-              if (assetInfo.name === 'style.css') return 'auth.css';
+              if (assetInfo.name === 'style.css') return 'assets/index.css';
+              return `assets/${assetInfo.name}`;
+            },
+          },
+        },
+      },
+    };
+  }
+
+  if (mode === 'payment') {
+    return {
+      ...commonConfig,
+      build: {
+        outDir: "dist",
+        emptyOutDir: false,
+        rollupOptions: {
+          input: {
+            payment: resolve(__dirname, "src/pages/subscription/index.tsx"),
+          },
+          output: {
+            entryFileNames: 'chunks/[name].js',
+            chunkFileNames: 'chunks/[name].[hash].js',
+            assetFileNames: (assetInfo) => {
+              if (assetInfo.name === 'style.css') return 'assets/[name].[hash].css';
               return `assets/${assetInfo.name}`;
             },
           },

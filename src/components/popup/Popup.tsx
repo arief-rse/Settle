@@ -8,6 +8,7 @@ import { UserMenu } from './components/UserMenu'
 import { ThemeToggle } from './components/ThemeToggle'
 import ResponsePanel from './components/ResponsePanel'
 import HistoryPanel from './components/HistoryPanel'
+import { SubscriptionStatus } from './components/SubscriptionStatus'
 import { supabase } from '../../lib/supabase'
 import { getCurrentUser } from '../../lib/supabase'
 import type { User, Session } from '@supabase/supabase-js'
@@ -142,6 +143,8 @@ const Popup = () => {
             </TabsList>
 
             <TabsContent value="analyze" className="p-4 space-y-4">
+              {user && <SubscriptionStatus />}
+              
               <Button
                 className="w-full"
                 onClick={handleStartSelection}

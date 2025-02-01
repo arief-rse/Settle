@@ -1,4 +1,5 @@
 import { Anthropic } from '@anthropic-ai/sdk';
+import { checkSubscriptionStatus, decrementRequestCount } from './stripe';
 
 interface Question {
   text: string;
@@ -23,7 +24,20 @@ export const processExtractedText = async (text: string, apiKey: string): Promis
     throw new Error('API key is missing');
   }
 
+  // Check subscription status and request count
+  const { isSubscribed, requestsRemaining } = await checkSubscriptionStatus();
+  
+  if (requestsRemaining <= 0 && !isSubscribed) {
+    throw new Error('No requests remaining. Please subscribe to continue using the service.');
+  }
+
   try {
+    // Decrement request count before processing
+    const decrementResult = await decrementRequestCount();
+    if (!decrementResult.success) {
+      throw new Error(decrementResult.message);
+    }
+
     const anthropic = new Anthropic({
       apiKey: apiKey,
       dangerouslyAllowBrowser: true

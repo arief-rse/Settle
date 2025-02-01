@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
-  "name": "Rectangle Reader Buddy",
+  "name": "Settle",
   "version": "1.0.0",
-  "description": "Select text from webpages using a rectangle selection tool",
+  "description": "A Chrome extension for text analysis",
   "permissions": [
     "activeTab",
     "scripting",
@@ -12,7 +12,17 @@
     "<all_urls>"
   ],
   "action": {
-    "default_popup": "index.html"
+    "default_popup": "index.html",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "48": "icons/icon48.png",
+      "128": "icons/icon128.png"
+    }
+  },
+  "icons": {
+    "16": "icons/icon16.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
   },
   "background": {
     "service_worker": "background.js",
@@ -21,12 +31,19 @@
   "content_scripts": [
     {
       "matches": ["<all_urls>"],
-      "js": ["content.js"]
+      "js": ["content.js"],
+      "css": ["content.css"]
     }
   ],
   "web_accessible_resources": [
     {
-      "resources": ["auth.html"],
+      "resources": [
+        "auth.html",
+        "payment.html",
+        "icons/*",
+        "assets/*",
+        "chunks/*"
+      ],
       "matches": ["<all_urls>"]
     }
   ],
