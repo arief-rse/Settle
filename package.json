@@ -4,7 +4,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc && vite build && vite build --mode content && vite build --mode background && vite build --mode auth && vite build --mode payment && powershell -Command \"Copy-Item -Path public/manifest.json,public/index.html,public/auth.html,public/payment.html -Destination dist/; New-Item -ItemType Directory -Force -Path dist/icons; Copy-Item -Path public/icons/* -Destination dist/icons/ -Force; New-Item -ItemType Directory -Force -Path dist/assets; New-Item -ItemType Directory -Force -Path dist/chunks\"",
+    "build": "tsc && vite build && vite build --mode content && vite build --mode background && copyfiles -u 1 \"public/**/*\" dist/",
     "preview": "vite preview",
     "lint": "eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0"
   },
