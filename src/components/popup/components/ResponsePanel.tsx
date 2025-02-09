@@ -9,13 +9,15 @@ interface ResponsePanelProps {
   extractedText: string;
   onClose: () => void;
   onHistory: () => void;
+  onAnalyzed?: () => void;
 }
 
-const ResponsePanel = ({ extractedText, onClose, onHistory }: ResponsePanelProps) => {
+const ResponsePanel: React.FC<ResponsePanelProps> = ({ extractedText, onClose, onHistory, onAnalyzed }) => {
   const [isExpanded, setIsExpanded] = useState(true);
   const [isLoading, setIsLoading] = useState(false);
   const [response, setResponse] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [hasDeducted, setHasDeducted] = useState(false);
 
   const handleAnalyze = async () => {
     setIsLoading(true);
@@ -37,6 +39,12 @@ const ResponsePanel = ({ extractedText, onClose, onHistory }: ResponsePanelProps
         timestamp: new Date().toISOString()
       });
       localStorage.setItem("analysisHistory", JSON.stringify(history.slice(0, 50))); // Keep last 50 items
+
+      // Deduct request only once after successful analysis
+      if (!hasDeducted && onAnalyzed) {
+        onAnalyzed();
+        setHasDeducted(true);
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to analyze text");
     } finally {

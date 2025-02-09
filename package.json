@@ -55,7 +55,8 @@
     "tailwind-merge": "^2.1.0",
     "tailwindcss-animate": "^1.0.7",
     "tesseract.js": "^4.1.1",
-    "vaul": "^0.8.0"
+    "vaul": "^0.8.0",
+    "firebase": "^9.0.0"
   },
   "devDependencies": {
     "@types/chrome": "^0.0.254",
