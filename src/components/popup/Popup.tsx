@@ -103,7 +103,7 @@ const Popup = () => {
 
   return (
     <ThemeProvider defaultTheme="dark" storageKey="vite-ui-theme">
-      <Card className="w-[400px] p-4 rounded-xl">
+      <Card className="w-[400px] h-[600px] p-4 rounded-xl">
         <div className="flex justify-between items-center mb-4">
           <h2 className="text-lg font-semibold">Settle</h2>
           <div className="flex items-center gap-2">

@@ -1,9 +1,11 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { X, MessageCircle, Image as ImageIcon, Send } from "lucide-react";
 import { Button } from "../../ui/button";
 import { Card } from "../../ui/card";
 import { processExtractedText } from "../../../lib/ai-processor";
 import { Loader2 } from "lucide-react";
+import { auth, db, UserData } from '../../../lib/firebase';
+import { doc, onSnapshot } from 'firebase/firestore';
 
 interface ResponsePanelProps {
   extractedText: string;
@@ -25,10 +27,28 @@ const ResponsePanel: React.FC<ResponsePanelProps> = ({
   const [response, setResponse] = useState<{ text: string; generatedImage?: string } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [query, setQuery] = useState('');
+  const [userData, setUserData] = useState<UserData | null>(null);
+
+  useEffect(() => {
+    const unsubscribe = auth.onAuthStateChanged(user => {
+      if (user) {
+        const userDocRef = doc(db, 'users', user.uid);
+        return onSnapshot(userDocRef, (doc) => {
+          setUserData(doc.data() as UserData);
+        });
+      }
+      return () => {};
+    });
+    return () => unsubscribe();
+  }, []);
 
   const handleAnalyze = async () => {
     if (!query.trim()) {
       setError('Please enter a question about the selected content');
+      return;
+    }
+    if (!userData) {
+      setError('Please sign in to analyze content');
       return;
     }
 
@@ -45,7 +65,7 @@ const ResponsePanel: React.FC<ResponsePanelProps> = ({
         source,
         imageData,
         query: query.trim()
-      }, apiKey);
+      }, apiKey, userData);
       setResponse(result);
 
       // Save to history

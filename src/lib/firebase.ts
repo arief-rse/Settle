@@ -1,5 +1,6 @@
 import { initializeApp } from 'firebase/app';
 import { getAuth, setPersistence, indexedDBLocalPersistence } from 'firebase/auth';
+import { getFirestore, doc, updateDoc, increment } from 'firebase/firestore';
 
 // Your web app's Firebase configuration
 const firebaseConfig = {
@@ -24,5 +25,31 @@ auth.useDeviceLanguage();
 setPersistence(auth, indexedDBLocalPersistence).catch((error) => {
   console.error("Error setting persistence:", error);
 });
+
+export const db = getFirestore(app);
+
+export interface UserData {
+  remainingRequests: number;
+  isSubscribed: boolean;
+  createdAt: number;
+}
+
+export async function decrementRemainingRequests(userId: string): Promise<boolean> {
+  try {
+    const userRef = doc(db, 'users', userId);
+    await updateDoc(userRef, {
+      remainingRequests: increment(-1)
+    });
+    return true;
+  } catch (error) {
+    console.error('Error decrementing remaining requests:', error);
+    return false;
+  }
+}
+
+export async function checkRequestAvailability(userData: UserData | null): Promise<boolean> {
+  if (!userData) return false;
+  return userData.isSubscribed || userData.remainingRequests > 0;
+}
 
 export { auth }; 

@@ -1,5 +1,6 @@
 import { Anthropic } from '@anthropic-ai/sdk';
 import type { ContentBlock } from '@anthropic-ai/sdk/resources/messages/messages';
+import { auth, checkRequestAvailability, decrementRemainingRequests, UserData } from './firebase';
 
 interface Question {
   text: string;
@@ -62,8 +63,26 @@ interface ExtractedContent {
 
 export const processExtractedText = async (
   extractedContent: ExtractedContent,
-  apiKey: string
+  apiKey: string,
+  userData: UserData
 ): Promise<{ text: string; generatedImage?: string }> => {
+  // Check request availability first
+  const canMakeRequest = await checkRequestAvailability(userData);
+  if (!canMakeRequest) {
+    throw new Error('No remaining requests. Please subscribe to continue.');
+  }
+
+  // If user is not subscribed, decrement their remaining requests
+  if (!userData.isSubscribed) {
+    const userId = auth.currentUser?.uid;
+    if (!userId) throw new Error('User not authenticated');
+    
+    const decremented = await decrementRemainingRequests(userId);
+    if (!decremented) {
+      throw new Error('Failed to process request. Please try again.');
+    }
+  }
+
   if (!apiKey) {
     throw new Error('API key is missing');
   }
