@@ -1,30 +1,43 @@
 {
   "manifest_version": 3,
-  "name": "Rectangle Reader Buddy",
-  "version": "1.0.0",
-  "description": "Select text from webpages using a rectangle selection tool",
+  "name": "Settle",
+  "description": "AI-powered text and image analysis tool",
+  "version": "1.0",
+  "action": {
+    "default_popup": "index.html",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "32": "icons/icon32.png",
+      "48": "icons/icon48.png",
+      "128": "icons/icon128.png"
+    }
+  },
+  "icons": {
+    "16": "icons/icon16.png",
+    "32": "icons/icon32.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  },
   "permissions": [
+    "storage",
+    "identity",
     "activeTab",
-    "scripting",
-    "storage"
+    "scripting"
   ],
   "host_permissions": [
-    "<all_urls>"
-  ],
-  "action": {
-    "default_popup": "index.html"
-  },
-  "background": {
-    "service_worker": "background.js",
-    "type": "module"
-  },
-  "content_scripts": [
-    {
-      "matches": ["<all_urls>"],
-      "js": ["content.js"]
-    }
+    "https://*.googleapis.com/*",
+    "https://*.google.com/*",
+    "https://*.firebaseapp.com/*"
   ],
   "content_security_policy": {
-    "extension_pages": "script-src 'self' 'wasm-unsafe-eval'; object-src 'self'"
-  }
+    "extension_pages": "script-src 'self' 'wasm-unsafe-eval' https://*.firebaseapp.com https://*.googleapis.com https://apis.google.com; object-src 'self'; connect-src 'self' https://*.firebaseio.com https://*.googleapis.com wss://*.firebaseio.com https://*.google.com https://*.anthropic.com;"
+  },
+  "oauth2": {
+    "client_id": "908976015864-qqvlvf3k6pk3r7v7c5qrqt6u5c7n7nnj.apps.googleusercontent.com",
+    "scopes": [
+      "https://www.googleapis.com/auth/userinfo.email",
+      "https://www.googleapis.com/auth/userinfo.profile"
+    ]
+  },
+  "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAhf04cN4y6v+dWZXqDOKF4kUZgXF+VyxY5AdGZqQ1rHAF9N7scjRG1hZJ3GqGZR5ZhVpYSkPW6a8qahDDp6c5oAJH5T5VvwG5RM1EC/0dqBFZqoqT4q6s5oQOj+R0BKz0Ht+z8GKHyECaHl+nSNEFJxZ+AtebZsgYEZGc8YHv8XgZCv8v2K0JQ5R6DJvlrUFzZ9KvHOYhCher3Ib8ZWPIxj8JZYvHJnUk/T1rUQM0zPnHH1SnHGGC8nF5Kv+INlw3mwk7rO5PWZXR2D9p5zZ2EyPx5jKU4PbPZJOBfN1boZyUUq7RyFJx5wIDAQAB"
 }

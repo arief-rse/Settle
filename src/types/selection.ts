@@ -9,3 +9,8 @@ export interface SelectionBoxStyle {
   width: string;
   height: string;
 }
+
+export interface ExtractedContent {
+  text: string;
+  source: 'text' | 'image' | 'both';
+}

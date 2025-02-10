@@ -11,13 +11,21 @@ import {
 import { Settings, LogOut, User } from "lucide-react";
 import { auth } from '../../../lib/firebase';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
+import { doc, getDoc, getFirestore } from 'firebase/firestore';
 
 export function UserMenu() {
   const [user, setUser] = useState<null | any>(null);
+  const [remainingRequests, setRemainingRequests] = useState<number | null>(null);
+  const db = getFirestore();
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
+    const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
       setUser(currentUser);
+      if (currentUser) {
+        const userDoc = await getDoc(doc(db, 'users', currentUser.uid));
+        const userData = userDoc.data();
+        setRemainingRequests(userData?.remainingRequests ?? null);
+      }
     });
     return () => unsubscribe();
   }, []);
@@ -45,6 +53,11 @@ export function UserMenu() {
         {user ? (
           <>
             <DropdownMenuLabel>{user.email}</DropdownMenuLabel>
+            {remainingRequests !== null && (
+              <DropdownMenuLabel className="text-sm text-gray-500">
+                Remaining requests: {remainingRequests}
+              </DropdownMenuLabel>
+            )}
             <DropdownMenuSeparator />
             <DropdownMenuItem className="cursor-pointer">
               <User className="mr-2 h-4 w-4" />

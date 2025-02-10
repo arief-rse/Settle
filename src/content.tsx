@@ -1,5 +1,19 @@
-import React, { StrictMode, useState, useCallback } from 'react';
+import React, { StrictMode, useState, useCallback, useRef } from 'react';
 import { createRoot } from 'react-dom/client';
+import { extractTextFromSelection } from './services/textExtractor';
+
+
+interface ExtractedContent {
+  text: string;
+  source: 'text' | 'image' | 'both';
+  imageData?: string;
+  coordinates?: {
+    left: number;
+    top: number;
+    right: number;
+    bottom: number;
+  };
+}
 
 (() => {
   let container: HTMLDivElement | null = null;
@@ -22,10 +36,25 @@ import { createRoot } from 'react-dom/client';
       }
 
       .text-extractor-selection-box {
-        position: absolute !important;
+        position: fixed !important;
         border: 2px solid #007bff !important;
         background: rgba(0, 123, 255, 0.1) !important;
         pointer-events: none !important;
+      }
+
+      .text-extractor-selection-guide {
+        position: fixed !important;
+        top: 20px !important;
+        left: 50% !important;
+        transform: translateX(-50%) !important;
+        background: white !important;
+        padding: 8px 16px !important;
+        border-radius: 8px !important;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.15) !important;
+        font-size: 14px !important;
+        color: #666 !important;
+        pointer-events: none !important;
+        z-index: 2147483648 !important;
       }
     `;
     document.head.appendChild(style);
@@ -55,77 +84,116 @@ import { createRoot } from 'react-dom/client';
     const [isSelecting, setIsSelecting] = useState(false);
     const [selectionStart, setSelectionStart] = useState({ x: 0, y: 0 });
     const [selectionEnd, setSelectionEnd] = useState({ x: 0, y: 0 });
+    const containerRef = useRef<HTMLDivElement>(null);
+
+    const getPageOffset = useCallback(() => {
+      return {
+        x: window.scrollX,
+        y: window.scrollY
+      };
+    }, []);
 
     const handleMouseDown = useCallback((e: React.MouseEvent) => {
+      if (!containerRef.current) return;
+      
       setIsSelecting(true);
-      setSelectionStart({ x: e.clientX, y: e.clientY });
-      setSelectionEnd({ x: e.clientX, y: e.clientY });
+      setSelectionStart({ 
+        x: e.clientX,
+        y: e.clientY
+      });
+      setSelectionEnd({ 
+        x: e.clientX,
+        y: e.clientY
+      });
     }, []);
 
     const handleMouseMove = useCallback((e: React.MouseEvent) => {
-      if (isSelecting) {
-        setSelectionEnd({ x: e.clientX, y: e.clientY });
-      }
+      if (!isSelecting) return;
+      
+      setSelectionEnd({ 
+        x: e.clientX,
+        y: e.clientY
+      });
     }, [isSelecting]);
 
     const handleMouseUp = useCallback(() => {
       if (isSelecting) {
         setIsSelecting(false);
         
-        // Calculate selection rectangle
+        const pageOffset = getPageOffset();
+        // Store viewport coordinates for visual rectangle
         const left = Math.min(selectionStart.x, selectionEnd.x);
         const top = Math.min(selectionStart.y, selectionEnd.y);
         const right = Math.max(selectionStart.x, selectionEnd.x);
         const bottom = Math.max(selectionStart.y, selectionEnd.y);
 
-        // Get all text nodes within the selection rectangle
-        const textNodes: Text[] = [];
-        const walker = document.createTreeWalker(
-          document.body,
-          NodeFilter.SHOW_TEXT,
-          null
-        );
+        // Calculate absolute coordinates for text extraction
+        const absLeft = left + pageOffset.x;
+        const absTop = top + pageOffset.y;
+        const absRight = right + pageOffset.x;
+        const absBottom = bottom + pageOffset.y;
 
-        let node: Text | null;
-        while ((node = walker.nextNode() as Text)) {
-          const rect = node.parentElement?.getBoundingClientRect();
-          if (rect && 
-              rect.left <= right && 
-              rect.right >= left && 
-              rect.top <= bottom && 
-              rect.bottom >= top) {
-            textNodes.push(node);
+        // Extract text using the enhanced extractor with absolute coordinates
+        extractTextFromSelection(
+          { 
+            x: absLeft,
+            y: absTop
+          },
+          { 
+            x: absRight,
+            y: absBottom
+          },
+          { left, top, right, bottom }
+        ).then((result: ExtractedContent) => {
+          // Send selected text to background script
+          if (result.text || result.imageData) {
+            chrome.runtime.sendMessage({
+              type: 'TEXT_SELECTED',
+              text: result.text,
+              source: result.source,
+              imageData: result.imageData,
+              timestamp: new Date().toISOString()
+            }, (response) => {
+              if (chrome.runtime.lastError) {
+                console.error('Error sending message:', chrome.runtime.lastError);
+              } else if (response?.success) {
+                console.log('Text selection sent successfully');
+                // Clean up the overlay immediately after successful send
+                cleanupReactApp();
+              }
+            });
+          } else {
+            // Clean up if no content was extracted
+            cleanupReactApp();
           }
-        }
-
-        // Extract text from selected nodes
-        const selectedText = textNodes
-          .map(node => node.textContent)
-          .filter(Boolean)
-          .join(' ')
-          .trim();
-
-        // Send selected text to background script
-        if (selectedText) {
-          chrome.runtime.sendMessage({
-            type: 'TEXT_SELECTED',
-            text: selectedText,
-            timestamp: new Date().toISOString()
-          }, (response) => {
-            if (chrome.runtime.lastError) {
-              console.error('Error sending message:', chrome.runtime.lastError);
-            } else if (response?.success) {
-              console.log('Text selection sent successfully');
-            }
-          });
-        }
-
-        // Clean up the overlay
-        cleanupReactApp();
+        }).catch((error: Error) => {
+          console.error('Error extracting text:', error);
+          // Show error message to user
+          const errorDiv = document.createElement('div');
+          errorDiv.style.cssText = `
+            position: fixed;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: #fff;
+            padding: 12px 24px;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+            z-index: 2147483647;
+            color: #dc2626;
+          `;
+          errorDiv.textContent = error.message;
+          document.body.appendChild(errorDiv);
+          setTimeout(() => {
+            errorDiv.remove();
+            // Clean up overlay after error message
+            cleanupReactApp();
+          }, 3000);
+        });
       }
-    }, [isSelecting, selectionStart, selectionEnd]);
+    }, [isSelecting, selectionStart, selectionEnd, getPageOffset]);
 
-    // Calculate selection box dimensions
+    // Calculate selection box dimensions in viewport coordinates
     const selectionStyle = {
       startX: Math.min(selectionStart.x, selectionEnd.x),
       startY: Math.min(selectionStart.y, selectionEnd.y),
@@ -135,11 +203,17 @@ import { createRoot } from 'react-dom/client';
 
     return (
       <div
+        ref={containerRef}
         className="text-extractor-selection-tool"
         onMouseDown={handleMouseDown}
         onMouseMove={handleMouseMove}
         onMouseUp={handleMouseUp}
       >
+        {!isSelecting && (
+          <div className="text-extractor-selection-guide">
+            Click and drag to select an area
+          </div>
+        )}
         {isSelecting && (
           <SelectionBox {...selectionStyle} />
         )}
