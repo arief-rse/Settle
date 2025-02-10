@@ -1,6 +1,5 @@
 import { Anthropic } from '@anthropic-ai/sdk';
 import type { ContentBlock } from '@anthropic-ai/sdk/resources/messages/messages';
-import { saveToHistory } from '../components/popup/components/HistoryPanel';
 
 interface Question {
   text: string;
@@ -195,15 +194,7 @@ Note: Only analyze the content provided. Do not make assumptions about content o
           generatedImage = `data:${imageContent.source.media_type};base64,${imageContent.source.data}`;
         }
       }
-    });
 
-    // Save to Firebase history
-    await saveToHistory({
-      text: extractedContent.text,
-      response: responseText,
-      source: extractedContent.source,
-      imageData: extractedContent.imageData,
-      query: extractedContent.query || 'Analysis request'
     });
 
     return {

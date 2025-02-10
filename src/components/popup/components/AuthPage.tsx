@@ -6,13 +6,13 @@ import {
   signOut, 
   onAuthStateChanged,
   GoogleAuthProvider,
-  signInWithPopup
+  
+  signInWithCredential
 } from 'firebase/auth';
 import { Button } from "../../ui/button";
 import { Input } from "../../ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "../../ui/card";
 import { Separator } from "../../ui/separator";
-import { createUserDocument } from '../../../lib/firebase';
 
 const AuthPage: React.FC = () => {
   const [email, setEmail] = useState('');
@@ -34,8 +34,7 @@ const AuthPage: React.FC = () => {
     setError('');
     try {
       if (isSignUp) {
-        const userCredential = await createUserWithEmailAndPassword(auth, email, password);
-        await createUserDocument(userCredential.user.uid, userCredential.user.email || '');
+        await createUserWithEmailAndPassword(auth, email, password);
       } else {
         await signInWithEmailAndPassword(auth, email, password);
       }
@@ -48,18 +47,61 @@ const AuthPage: React.FC = () => {
   };
 
   const handleGoogleSignIn = async () => {
-    setError('');
-    setLoading(true);
-
+    let authToken: string | undefined;
     try {
-      const provider = new GoogleAuthProvider();
-      const result = await signInWithPopup(auth, provider);
-      await createUserDocument(result.user.uid, result.user.email || '');
+      // Get the OAuth token from Chrome identity API
+      authToken = await new Promise<string>((resolve, reject) => {
+        chrome.identity.getAuthToken({ 
+          interactive: true,
+          // Specify we want a Google OAuth token
+          scopes: [
+            'https://www.googleapis.com/auth/userinfo.email',
+            'https://www.googleapis.com/auth/userinfo.profile',
+            'openid'
+          ]
+        }, (token) => {
+          if (chrome.runtime.lastError) {
+            console.error('Chrome identity error:', chrome.runtime.lastError);
+            reject(new Error(chrome.runtime.lastError.message));
+          } else if (!token) {
+            reject(new Error('Failed to get auth token'));
+          } else {
+            resolve(token);
+          }
+        });
+      });
+
+      // Get ID token from Google
+      const response = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
+        headers: {
+          'Authorization': `Bearer ${authToken}`,
+          'Accept': 'application/json'
+        }
+      });
+      
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Failed to get user info: ${errorText}`);
+      }
+
+      const userInfo = await response.json();
+      console.log('Google user info:', userInfo);
+      
+      // Create credential with the ID token
+      const credential = GoogleAuthProvider.credential(null, authToken);
+      
+      // Sign in with credential
+      await signInWithCredential(auth, credential);
+      
     } catch (error: any) {
       console.error('Google sign-in error:', error);
-      setError(error.message);
-    } finally {
-      setLoading(false);
+      // Only try to remove the token if we have one
+      if (authToken) {
+        chrome.identity.removeCachedAuthToken({ token: authToken }, () => {
+          console.log('Removed cached auth token');
+        });
+      }
+      setError(error.message || 'Failed to sign in with Google');
     }
   };
 
