@@ -7,10 +7,16 @@ yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
 
+# Dependencies
 node_modules
+.pnp
+.pnp.js
+
+# Build outputs
 dist
 dist-ssr
 *.local
+build
 
 # Editor directories and files
 .vscode/*
@@ -25,4 +31,21 @@ dist-ssr
 
 # Chrome extension
 *.crx
+*.pem
 *.xpi
+
+# Environment and secrets
+.env
+.env.*
+!.env.example
+service-account-key.json
+
+# Firebase
+.firebase/
+*.log
+firebase-debug.log*
+ui-debug.log*
+
+# Migration scripts (uncomment if migrations are complete)
+# scripts/migrate-*.ts
+# scripts/migrate-*.js

@@ -9,8 +9,10 @@ import HistoryPanel from "./components/HistoryPanel";
 import { UserMenu } from "./components/UserMenu";
 import { ThemeToggle } from "./components/ThemeToggle";
 import AuthPage from "./components/AuthPage";
-import { auth } from '../../lib/firebase';
+import { auth, db } from '../../lib/firebase';
 import { onAuthStateChanged } from 'firebase/auth';
+import { Toaster, toast } from 'sonner';
+import { doc, updateDoc } from 'firebase/firestore';
 
 const Popup = () => {
   const [activeTab, setActiveTab] = useState<"analyze" | "history">("analyze");
@@ -20,6 +22,32 @@ const Popup = () => {
   const [imageData, setImageData] = useState<string | undefined>(undefined);
   const [error, setError] = useState<string | null>(null);
   const [user, setUser] = useState<null | any>(null);
+
+  useEffect(() => {
+    // Check for Stripe success/cancel URL parameters
+    const urlParams = new URLSearchParams(window.location.search);
+    const success = urlParams.get('success');
+    const userId = user?.uid;
+
+    if (success === 'true' && userId) {
+      // Update user's subscription status
+      const userRef = doc(db, 'users', userId);
+      updateDoc(userRef, {
+        isSubscribed: true,
+      }).then(() => {
+        toast.success('Successfully subscribed!');
+        // Clear URL parameters
+        window.history.replaceState({}, '', window.location.pathname);
+      }).catch((error) => {
+        console.error('Error updating subscription status:', error);
+        toast.error('Error updating subscription status');
+      });
+    } else if (success === 'false') {
+      toast.error('Subscription was cancelled');
+      // Clear URL parameters
+      window.history.replaceState({}, '', window.location.pathname);
+    }
+  }, [user]);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
@@ -103,6 +131,7 @@ const Popup = () => {
 
   return (
     <ThemeProvider defaultTheme="dark" storageKey="vite-ui-theme">
+      <Toaster richColors position="top-center" />
       <Card className="w-[400px] h-[600px] p-4 rounded-xl">
         <div className="flex justify-between items-center mb-4">
           <h2 className="text-lg font-semibold">Settle</h2>

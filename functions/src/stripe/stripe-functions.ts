@@ -1,12 +1,10 @@
 import { onRequest } from 'firebase-functions/v2/https';
+import Stripe from 'stripe';
 import { db, admin } from '../lib/firebase';
-import { stripe, STRIPE_WEBHOOK_SECRET } from './stripe';
-import express from 'express';
-import cors from 'cors';
-import type Stripe from 'stripe';
 
-const app = express();
-app.use(cors({ origin: true }));
+const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
+  apiVersion: '2023-10-16',
+});
 
 interface CreatePaymentIntentData {
   amount: number;
@@ -18,18 +16,38 @@ interface CreateSubscriptionData {
   customerId?: string;
 }
 
-interface CreateCheckoutSessionData {
+interface CheckoutSessionRequest {
   priceId: string;
   successUrl: string;
   cancelUrl: string;
+  metadata?: {
+    userId?: string;
+    type?: 'subscription' | 'additional_request';
+    creditRequests?: string;
+  };
 }
 
 // Create a payment intent
 export const createPaymentIntent = onRequest({
-  cors: true,
+  cors: [/^chrome-extension:\/\/.*/],
   region: 'us-central1',
 }, async (req, res) => {
   try {
+    // Handle preflight requests
+    if (req.method === 'OPTIONS') {
+      res.set('Access-Control-Allow-Methods', 'POST, OPTIONS');
+      res.set('Access-Control-Allow-Headers', 'Content-Type, Origin, Accept');
+      res.set('Access-Control-Allow-Credentials', 'true');
+      res.set('Access-Control-Max-Age', '3600');
+      res.status(204).send('');
+      return;
+    }
+
+    if (req.method !== 'POST') {
+      res.status(405).json({ error: 'Method Not Allowed' });
+      return;
+    }
+
     const { amount, currency } = req.body as CreatePaymentIntentData;
     
     const paymentIntent = await stripe.paymentIntents.create({
@@ -37,19 +55,38 @@ export const createPaymentIntent = onRequest({
       currency,
     });
     
+    res.set('Access-Control-Allow-Credentials', 'true');
     res.json({ clientSecret: paymentIntent.client_secret });
   } catch (error) {
     console.error('Error creating payment intent:', error);
-    res.status(500).json({ error: 'Error creating payment intent' });
+    res.status(500).json({ 
+      error: error instanceof Error ? error.message : 'Internal server error',
+      details: process.env.NODE_ENV === 'development' ? error : undefined
+    });
   }
 });
 
 // Create a subscription
 export const createSubscription = onRequest({
-  cors: true,
+  cors: [/^chrome-extension:\/\/.*/],
   region: 'us-central1',
 }, async (req, res) => {
   try {
+    // Handle preflight requests
+    if (req.method === 'OPTIONS') {
+      res.set('Access-Control-Allow-Methods', 'POST, OPTIONS');
+      res.set('Access-Control-Allow-Headers', 'Content-Type, Origin, Accept');
+      res.set('Access-Control-Allow-Credentials', 'true');
+      res.set('Access-Control-Max-Age', '3600');
+      res.status(204).send('');
+      return;
+    }
+
+    if (req.method !== 'POST') {
+      res.status(405).json({ error: 'Method Not Allowed' });
+      return;
+    }
+
     const { priceId, customerId } = req.body as CreateSubscriptionData;
     
     if (!customerId) {
@@ -66,38 +103,107 @@ export const createSubscription = onRequest({
     const invoice = subscription.latest_invoice as Stripe.Invoice;
     const paymentIntent = invoice.payment_intent as Stripe.PaymentIntent;
     
+    res.set('Access-Control-Allow-Credentials', 'true');
     res.json({
       subscriptionId: subscription.id,
       clientSecret: paymentIntent.client_secret,
     });
   } catch (error) {
     console.error('Error creating subscription:', error);
-    res.status(500).json({ error: 'Error creating subscription' });
+    res.status(500).json({ 
+      error: error instanceof Error ? error.message : 'Internal server error',
+      details: process.env.NODE_ENV === 'development' ? error : undefined
+    });
   }
 });
 
 // Create a checkout session
 export const createCheckoutSession = onRequest({
-  cors: true,
-  region: 'us-central1',
+  cors: [/^chrome-extension:\/\/.*/],
+  maxInstances: 10,
 }, async (req, res) => {
   try {
-    const { priceId, successUrl, cancelUrl } = req.body as CreateCheckoutSessionData;
-    
+    // Handle preflight requests
+    if (req.method === 'OPTIONS') {
+      res.set('Access-Control-Allow-Methods', 'POST, OPTIONS');
+      res.set('Access-Control-Allow-Headers', 'Content-Type, Origin, Accept');
+      res.set('Access-Control-Allow-Credentials', 'true');
+      res.set('Access-Control-Max-Age', '3600');
+      res.status(204).send('');
+      return;
+    }
+
+    if (req.method !== 'POST') {
+      res.status(405).json({ error: 'Method Not Allowed' });
+      return;
+    }
+
+    // Validate origin
+    const origin = req.headers.origin;
+    if (!origin?.startsWith('chrome-extension://')) {
+      res.status(403).json({ error: 'Invalid origin' });
+      return;
+    }
+
+    const { priceId, successUrl, cancelUrl, metadata } = req.body as CheckoutSessionRequest;
+
+    if (!priceId || !successUrl || !cancelUrl) {
+      res.status(400).json({ error: 'Missing required parameters' });
+      return;
+    }
+
+    // Get or create customer
+    let customer: string | undefined;
+    if (metadata?.userId) {
+      const customerSnapshot = await db
+        .collection('customers')
+        .where('userId', '==', metadata.userId)
+        .limit(1)
+        .get();
+
+      if (!customerSnapshot.empty) {
+        customer = customerSnapshot.docs[0].data().stripeCustomerId;
+      } else {
+        // Create a new customer
+        const customerData = await stripe.customers.create({
+          metadata: { userId: metadata.userId }
+        });
+        customer = customerData.id;
+
+        // Save customer data
+        await db.collection('customers').doc(metadata.userId).set({
+          userId: metadata.userId,
+          stripeCustomerId: customer,
+          createdAt: Date.now()
+        });
+      }
+    }
+
+    // Create checkout session
     const session = await stripe.checkout.sessions.create({
-      mode: 'payment',
+      mode: metadata?.type === 'subscription' ? 'subscription' : 'payment',
+      success_url: successUrl,
+      cancel_url: cancelUrl,
+      customer: customer,
       line_items: [{
         price: priceId,
         quantity: 1,
       }],
-      success_url: successUrl,
-      cancel_url: cancelUrl,
+      metadata: metadata,
+      allow_promotion_codes: true,
+      billing_address_collection: 'auto',
+      customer_creation: customer ? undefined : 'always',
     });
-    
-    res.json({ sessionId: session.id });
+
+    // Set CORS headers explicitly
+    res.set('Access-Control-Allow-Credentials', 'true');
+    res.status(200).json({ sessionId: session.id });
   } catch (error) {
     console.error('Error creating checkout session:', error);
-    res.status(500).json({ error: 'Error creating checkout session' });
+    res.status(500).json({ 
+      error: error instanceof Error ? error.message : 'Internal server error',
+      details: process.env.NODE_ENV === 'development' ? error : undefined
+    });
   }
 });
 
@@ -108,7 +214,7 @@ export const handleStripeWebhook = onRequest({
 }, async (request, response) => {
   const sig = request.headers['stripe-signature'];
 
-  if (!sig || !STRIPE_WEBHOOK_SECRET || !request.rawBody) {
+  if (!sig || !process.env.STRIPE_WEBHOOK_SECRET || !request.rawBody) {
     response.status(400).send('Webhook signature verification failed');
     return;
   }
@@ -117,7 +223,7 @@ export const handleStripeWebhook = onRequest({
     const event = stripe.webhooks.constructEvent(
       request.rawBody,
       sig,
-      STRIPE_WEBHOOK_SECRET
+      process.env.STRIPE_WEBHOOK_SECRET
     );
 
     // Handle the event

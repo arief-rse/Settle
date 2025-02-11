@@ -32,12 +32,21 @@ const ResponsePanel: React.FC<ResponsePanelProps> = ({
   useEffect(() => {
     const unsubscribe = auth.onAuthStateChanged(user => {
       if (user) {
+        console.log('User authenticated:', user.uid);
         const userDocRef = doc(db, 'users', user.uid);
-        return onSnapshot(userDocRef, (doc) => {
-          setUserData(doc.data() as UserData);
+        const unsubscribeDoc = onSnapshot(userDocRef, (doc) => {
+          const data = doc.data() as UserData;
+          console.log('User data:', data);
+          setUserData(data);
+        }, (error) => {
+          console.error('Error fetching user data:', error);
+          setError('Error fetching user data. Please try signing in again.');
         });
+        return () => unsubscribeDoc();
+      } else {
+        console.log('No user authenticated');
+        setUserData(null);
       }
-      return () => {};
     });
     return () => unsubscribe();
   }, []);
