@@ -1,0 +1,25 @@
+{
+  "manifest_version": 3,
+  "name": "Settle",
+  "version": "1.0.0",
+  "description": "Smart Text Selection by <b/io>",
+  "permissions": [
+    "storage",
+    "tabs"
+  ],
+  "host_permissions": [
+    "https://settle.bangmil.io/*"
+  ],
+  "externally_connectable": {
+    "matches": [
+      "https://settle.bangmil.io/*"
+    ]
+  },
+  "action": {
+    "default_popup": "index.html"
+  },
+  "background": {
+    "service_worker": "background/index.js",
+    "type": "module"
+  }
+} 

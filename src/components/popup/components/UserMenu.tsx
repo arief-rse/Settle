@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { Avatar, AvatarFallback, AvatarImage } from "../../ui/avatar";
 import {
   DropdownMenu,
@@ -8,58 +8,29 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "../../ui/dropdown-menu";
-import { Settings, LogOut, User, Crown, CreditCard } from "lucide-react";
-import { auth, db } from '../../../lib/firebase';
-import { onAuthStateChanged, signOut } from 'firebase/auth';
-import { doc, getDoc, setDoc } from 'firebase/firestore';
+import { Settings, LogOut, User, Crown, CreditCard, Loader2 } from "lucide-react";
+import { auth } from '../../../lib/firebase';
+import { signOut } from 'firebase/auth';
 import type { UserData } from '../../../lib/firebase';
 import { Progress } from "../../ui/progress";
 import { createSubscriptionCheckout } from '../../../lib/stripe-client';
 import { toast } from 'sonner';
 
-export function UserMenu() {
-  const [userData, setUserData] = useState<UserData | null>(null);
+interface UserMenuProps {
+  userData: UserData | null;
+}
+
+export function UserMenu({ userData }: UserMenuProps) {
   const [isLoading, setIsLoading] = useState(false);
-
-  useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (user) => {
-      if (user) {
-        try {
-          const userRef = doc(db, 'users', user.uid);
-          const userDoc = await getDoc(userRef);
-          
-          if (!userDoc.exists()) {
-            // Create new user document if it doesn't exist
-            const initialUserData: UserData = {
-              uid: user.uid,
-              email: user.email,
-              displayName: user.displayName,
-              photoURL: user.photoURL,
-              remainingRequests: 5,
-              isSubscribed: false,
-              createdAt: Date.now()
-            };
-            await setDoc(userRef, initialUserData);
-            setUserData(initialUserData);
-          } else {
-            setUserData(userDoc.data() as UserData);
-          }
-        } catch (error) {
-          console.error('Error fetching user data:', error);
-        }
-      } else {
-        setUserData(null);
-      }
-    });
-
-    return () => unsubscribe();
-  }, []);
 
   const handleSignOut = async () => {
     try {
       await signOut(auth);
+      // Clear user data from storage
+      chrome.storage.local.remove('userData');
     } catch (error) {
       console.error('Error signing out:', error);
+      toast.error('Failed to sign out');
     }
   };
 
@@ -128,10 +99,19 @@ export function UserMenu() {
           <DropdownMenuItem 
             onClick={handleUpgradeClick}
             disabled={isLoading}
-            className="cursor-pointer"
+            className={`cursor-pointer ${isLoading ? 'opacity-50' : ''}`}
           >
-            <CreditCard className="mr-2 h-4 w-4" />
-            {isLoading ? 'Processing...' : 'Upgrade to Premium'}
+            {isLoading ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Processing...
+              </>
+            ) : (
+              <>
+                <CreditCard className="mr-2 h-4 w-4" />
+                Upgrade to Premium
+              </>
+            )}
           </DropdownMenuItem>
         )}
 

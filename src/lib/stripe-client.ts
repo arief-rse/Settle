@@ -191,19 +191,21 @@ export async function createSubscriptionCheckout(userId: string) {
 
     console.log('Session data:', sessionData);
     
+    if (sessionData.url) {
+      return sessionData.url;
+    }
+
     const stripe = await getStripe();
     if (!stripe) {
       throw new Error('Stripe not initialized');
     }
 
-    const { error } = await stripe.redirectToCheckout({ 
-      sessionId: sessionData.sessionId 
-    });
-    
-    if (error) {
-      console.error('Redirect to checkout failed:', error);
-      throw error;
+    const result = await stripe.redirectToCheckout({ sessionId: sessionData.sessionId });
+    if (result.error) {
+      throw new Error(result.error.message);
     }
+
+    return '';
   } catch (error) {
     console.error('Error creating subscription checkout:', error);
     throw error;

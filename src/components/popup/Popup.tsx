@@ -8,11 +8,17 @@ import ResponsePanel from "./components/ResponsePanel";
 import HistoryPanel from "./components/HistoryPanel";
 import { UserMenu } from "./components/UserMenu";
 import { ThemeToggle } from "./components/ThemeToggle";
-import AuthPage from "./components/AuthPage";
-import { auth, db } from '../../lib/firebase';
-import { onAuthStateChanged } from 'firebase/auth';
-import { Toaster, toast } from 'sonner';
-import { doc, updateDoc } from 'firebase/firestore';
+import { Toaster } from 'sonner';
+
+interface UserData {
+  uid: string;
+  email: string | null;
+  displayName: string | null;
+  photoURL: string | null;
+  isSubscribed: boolean;
+  remainingRequests: number;
+  createdAt: number;
+}
 
 const Popup = () => {
   const [activeTab, setActiveTab] = useState<"analyze" | "history">("analyze");
@@ -21,41 +27,23 @@ const Popup = () => {
   const [textSource, setTextSource] = useState<'text' | 'image' | 'both'>('text');
   const [imageData, setImageData] = useState<string | undefined>(undefined);
   const [error, setError] = useState<string | null>(null);
-  const [user, setUser] = useState<null | any>(null);
+  const [userData, setUserData] = useState<UserData | null>(null);
 
+  // Load user data from storage
   useEffect(() => {
-    // Check for Stripe success/cancel URL parameters
-    const urlParams = new URLSearchParams(window.location.search);
-    const success = urlParams.get('success');
-    const userId = user?.uid;
-
-    if (success === 'true' && userId) {
-      // Update user's subscription status
-      const userRef = doc(db, 'users', userId);
-      updateDoc(userRef, {
-        isSubscribed: true,
-      }).then(() => {
-        toast.success('Successfully subscribed!');
-        // Clear URL parameters
-        window.history.replaceState({}, '', window.location.pathname);
-      }).catch((error) => {
-        console.error('Error updating subscription status:', error);
-        toast.error('Error updating subscription status');
-      });
-    } else if (success === 'false') {
-      toast.error('Subscription was cancelled');
-      // Clear URL parameters
-      window.history.replaceState({}, '', window.location.pathname);
-    }
-  }, [user]);
-
-  useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
-      setUser(currentUser);
+    chrome.storage.local.get(['userData'], (result) => {
+      setUserData(result.userData || null);
     });
-    return () => unsubscribe();
+
+    // Listen for changes to user data
+    chrome.storage.onChanged.addListener((changes) => {
+      if (changes.userData) {
+        setUserData(changes.userData.newValue);
+      }
+    });
   }, []);
 
+  // Handle text selection
   useEffect(() => {
     chrome.runtime.sendMessage({ type: 'GET_SELECTED_TEXT' }, (response) => {
       if (response?.text) {
@@ -90,8 +78,10 @@ const Popup = () => {
   }, []);
 
   const handleStartSelection = async () => {
-    if (!user) {
-      alert('Please log in to start selection.');
+    if (!userData) {
+      // Open the website's auth page in a new tab
+      chrome.tabs.create({ url: 'https://settle.bangmil.io/signin?source=extension' });
+      window.close();
       return;
     }
 
@@ -120,7 +110,6 @@ const Popup = () => {
       console.error('Error starting selection:', error);
       setIsSelecting(false);
       
-      // Show a more user-friendly error message
       const errorMessage = error.message.includes('ExtensionsSettings policy') 
         ? 'This page cannot be accessed due to security settings. Please try on a regular webpage.'
         : error.message;
@@ -131,13 +120,13 @@ const Popup = () => {
 
   return (
     <ThemeProvider defaultTheme="dark" storageKey="vite-ui-theme">
-      <Toaster richColors position="top-center" />
+      <Toaster />
       <Card className="w-[400px] h-[600px] p-4 rounded-xl">
         <div className="flex justify-between items-center mb-4">
           <h2 className="text-lg font-semibold">Settle</h2>
           <div className="flex items-center gap-2">
             <ThemeToggle />
-            <UserMenu />
+            <UserMenu userData={userData} />
           </div>
         </div>
         
@@ -160,36 +149,80 @@ const Popup = () => {
           </TabsList>
 
           <TabsContent value="analyze" className="mt-0">
-            {user ? (
-              error ? (
-                <div className="text-center py-8">
-                  <p className="text-red-500 mb-4">{error}</p>
-                  <Button onClick={() => setError(null)} variant="outline">Try Again</Button>
-                </div>
-              ) : selectedText ? (
-                <ResponsePanel
-                  extractedText={selectedText}
-                  onClose={() => {
-                    setSelectedText(null);
-                    setImageData(undefined);
-                  }}
-                  onHistory={() => setActiveTab("history")}
-                  source={textSource}
-                  imageData={imageData}
-                />
-              ) : (
-                <div className="text-center py-8">
-                  <Button
-                    onClick={handleStartSelection}
-                    disabled={isSelecting}
-                    className="w-full max-w-sm"
-                  >
-                    {isSelecting ? "Selecting..." : "Start Selection"}
-                  </Button>
-                </div>
-              )
+            {error ? (
+              <div className="text-center py-8">
+                <p className="text-red-500 mb-4">{error}</p>
+                <Button onClick={() => setError(null)} variant="outline">Try Again</Button>
+              </div>
+            ) : selectedText && userData ? (
+              <ResponsePanel
+                extractedText={selectedText}
+                onClose={() => {
+                  setSelectedText(null);
+                  setImageData(undefined);
+                }}
+                onHistory={() => setActiveTab("history")}
+                source={textSource}
+                imageData={imageData}
+                userData={userData}
+              />
             ) : (
-              <AuthPage />
+              <div className="space-y-6 py-4">
+                <div className="text-center">
+                  <h3 className="text-lg font-semibold mb-2">Smart Text Selection</h3>
+                  <p className="text-sm text-gray-500 mb-6">
+                    Select and analyze text from any webpage using our intelligent rectangle selection tool.
+                  </p>
+                  
+                  {userData ? (
+                    <Button
+                      onClick={handleStartSelection}
+                      disabled={isSelecting}
+                      className="w-full max-w-sm"
+                    >
+                      {isSelecting ? "Selecting..." : "Start Selection"}
+                    </Button>
+                  ) : (
+                    <div className="space-y-4">
+                      <Button
+                        onClick={() => chrome.tabs.create({ url: 'https://settle.bangmil.io/signin?source=extension' })}
+                        className="w-full max-w-sm bg-indigo-600 hover:bg-indigo-700"
+                      >
+                        Sign in to Start
+                      </Button>
+                      <p className="text-xs text-gray-500">
+                        New to Settle? <a href="#" onClick={() => chrome.tabs.create({ url: 'https://settle.bangmil.io/signup?source=extension' })} className="text-indigo-600 hover:text-indigo-700">Create an account</a>
+                      </p>
+                    </div>
+                  )}
+                </div>
+
+                <div className="grid grid-cols-1 gap-4 px-4">
+                  <div className="p-4 bg-gray-50 rounded-lg">
+                    <div className="flex items-center gap-3 mb-2">
+                      <div className="p-2 bg-indigo-100 rounded-md">
+                        <Send className="h-4 w-4 text-indigo-600" />
+                      </div>
+                      <h4 className="font-medium">Instant Analysis</h4>
+                    </div>
+                    <p className="text-sm text-gray-600">
+                      Get AI-powered insights from your selected text instantly.
+                    </p>
+                  </div>
+
+                  <div className="p-4 bg-gray-50 rounded-lg">
+                    <div className="flex items-center gap-3 mb-2">
+                      <div className="p-2 bg-indigo-100 rounded-md">
+                        <History className="h-4 w-4 text-indigo-600" />
+                      </div>
+                      <h4 className="font-medium">Save History</h4>
+                    </div>
+                    <p className="text-sm text-gray-600">
+                      Keep track of your analyses and access them anytime.
+                    </p>
+                  </div>
+                </div>
+              </div>
             )}
           </TabsContent>
 

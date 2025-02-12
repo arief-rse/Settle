@@ -13,6 +13,7 @@ interface ResponsePanelProps {
   onHistory: () => void;
   source: 'text' | 'image' | 'both';
   imageData?: string;
+  userData: UserData;
 }
 
 const ResponsePanel: React.FC<ResponsePanelProps> = ({
@@ -20,14 +21,14 @@ const ResponsePanel: React.FC<ResponsePanelProps> = ({
   onClose,
   onHistory,
   source,
-  imageData
+  imageData,
+  userData
 }) => {
   const [isExpanded, setIsExpanded] = useState(true);
   const [isLoading, setIsLoading] = useState(false);
   const [response, setResponse] = useState<{ text: string; generatedImage?: string } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [query, setQuery] = useState('');
-  const [userData, setUserData] = useState<UserData | null>(null);
 
   useEffect(() => {
     const unsubscribe = auth.onAuthStateChanged(user => {
@@ -37,7 +38,6 @@ const ResponsePanel: React.FC<ResponsePanelProps> = ({
         const unsubscribeDoc = onSnapshot(userDocRef, (doc) => {
           const data = doc.data() as UserData;
           console.log('User data:', data);
-          setUserData(data);
         }, (error) => {
           console.error('Error fetching user data:', error);
           setError('Error fetching user data. Please try signing in again.');
@@ -45,7 +45,6 @@ const ResponsePanel: React.FC<ResponsePanelProps> = ({
         return () => unsubscribeDoc();
       } else {
         console.log('No user authenticated');
-        setUserData(null);
       }
     });
     return () => unsubscribe();
@@ -54,10 +53,6 @@ const ResponsePanel: React.FC<ResponsePanelProps> = ({
   const handleAnalyze = async () => {
     if (!query.trim()) {
       setError('Please enter a question about the selected content');
-      return;
-    }
-    if (!userData) {
-      setError('Please sign in to analyze content');
       return;
     }
 
