@@ -5,6 +5,7 @@ import {
   signInWithEmailAndPassword, 
   signOut, 
   onAuthStateChanged,
+  User
 } from 'firebase/auth';
 import { Button } from "../../ui/button";
 import { Input } from "../../ui/input";
@@ -21,7 +22,7 @@ const AuthPage: React.FC = () => {
   const [isLoading, setIsLoading] = useState(false);
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
+    const unsubscribe = onAuthStateChanged(auth, (currentUser: User | null) => {
       setUser(currentUser);
     });
     return () => unsubscribe();
@@ -174,4 +175,4 @@ const AuthPage: React.FC = () => {
   );
 };
 
-export default AuthPage; 
+export default AuthPage;

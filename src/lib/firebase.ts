@@ -38,7 +38,7 @@ const auth = getAuth(app);
 auth.useDeviceLanguage();
 
 // Set persistence to indexedDB for Chrome extensions
-setPersistence(auth, indexedDBLocalPersistence).catch((error) => {
+setPersistence(auth, indexedDBLocalPersistence).catch((error: Error) => {
   console.error("Error setting persistence:", error);
 });
 
@@ -220,4 +220,4 @@ if (typeof window !== 'undefined') {
   (window as any).runUserMigration = runMigration;
 }
 
-export { auth }; 
+export { auth };

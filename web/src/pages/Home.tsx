@@ -1,168 +1,172 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../lib/auth';
+import { motion } from 'framer-motion';
+import { ArrowRight, Sparkles, Zap, Shield, LineChart } from 'lucide-react';
 
 export default function Home() {
   const { user } = useAuth();
 
+  const features = [
+    {
+      name: 'Smart Selection',
+      description: 'Select text from any webpage using our intuitive rectangle selection tool.',
+      icon: Sparkles,
+    },
+    {
+      name: 'Instant Analysis',
+      description: 'Get immediate AI-powered insights and analysis from your selected text.',
+      icon: Zap,
+    },
+    {
+      name: 'Secure & Private',
+      description: 'Your data is encrypted and never stored without your permission.',
+      icon: Shield,
+    },
+    {
+      name: 'Analytics',
+      description: 'Track your usage and get insights into your content analysis patterns.',
+      icon: LineChart,
+    },
+  ];
+
   return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Navigation */}
-      <nav className="bg-white shadow-sm">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between h-16">
-            <div className="flex">
-              <div className="flex-shrink-0 flex items-center">
-                <a href="https://bangmil.io" target="_blank" rel="noopener noreferrer" className="text-gray-500 hover:text-gray-700 font-medium tracking-tight">
-                  &lt;b/io&gt;
-                </a>
-                <span className="mx-2 text-gray-300">/</span>
-                <span className="text-gray-900 font-extrabold tracking-tighter-plus">SETTLE</span>
-              </div>
-            </div>
-          </div>
-        </div>
-      </nav>
+    <div className="relative min-h-screen bg-gray-950">
+      {/* Subtle gradient background */}
+      <div className="absolute inset-0 -z-10">
+        <div className="absolute inset-0 bg-gradient-to-b from-gray-950 via-gray-900 to-gray-950" />
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,_var(--tw-gradient-stops))] from-blue-500/10 via-transparent to-transparent" />
+      </div>
 
-      <div className="max-w-7xl mx-auto py-12 px-4 sm:px-6 lg:px-8">
-        <div className="text-center">
-          <h1 className="text-4xl tracking-tight font-black text-gray-900 sm:text-5xl md:text-6xl">
-            <span className="block text-indigo-600 tracking-tighter-plus">SETTLE</span>
-            <span className="block text-sm font-medium-plus text-gray-500 mt-2 tracking-tight">by &lt;b/io&gt;</span>
-          </h1>
-          <p className="mt-3 max-w-md mx-auto text-base text-gray-500 sm:text-lg md:mt-5 md:text-xl md:max-w-3xl font-medium leading-relaxed">
-            A powerful text selection tool that helps you extract and analyze information from any webpage.
-            Part of the &lt;b/io&gt; productivity suite.
-          </p>
-          <div className="mt-5 max-w-md mx-auto sm:flex sm:justify-center md:mt-8">
-            {user ? (
-              <div className="rounded-md shadow">
-                <Link
-                  to="/dashboard"
-                  className="w-full flex items-center justify-center px-8 py-3 border border-transparent text-base font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 md:py-4 md:text-lg md:px-10"
-                >
-                  Go to Dashboard
+      {/* Minimal grid pattern */}
+      <div className="absolute inset-0 -z-10">
+        <div className="h-full w-full bg-[linear-gradient(to_right,#1f2937_1px,transparent_1px),linear-gradient(to_bottom,#1f2937_1px,transparent_1px)] bg-[size:4rem_4rem] [mask-image:radial-gradient(ellipse_80%_80%_at_50%_50%,black,transparent)]" />
+      </div>
+
+      {/* Content */}
+      <div className="relative">
+        {/* Navigation */}
+        <nav className="fixed top-0 left-0 right-0 z-50 border-b border-gray-800/50 bg-gray-950/50 backdrop-blur-xl">
+          <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+            <div className="flex h-16 justify-between">
+              <div className="flex items-center">
+                <Link to="/" className="flex items-center">
+                  <span className="text-2xl font-bold text-white flex items-baseline gap-2">
+                    Settle <span className="text-sm font-normal text-gray-400">by <span className="text-blue-400 font-medium">&lt;b/io&gt;</span></span>
+                  </span>
                 </Link>
               </div>
-            ) : (
-              <div className="space-y-4 sm:space-y-0 sm:mx-auto sm:inline-grid sm:grid-cols-2 sm:gap-5">
-                <Link
-                  to="/signin"
-                  className="flex items-center justify-center px-8 py-3 border border-transparent text-base font-medium rounded-md text-indigo-700 bg-indigo-100 hover:bg-indigo-200 md:py-4 md:text-lg md:px-10"
-                >
-                  Sign in
-                </Link>
-                <Link
-                  to="/signup"
-                  className="flex items-center justify-center px-8 py-3 border border-transparent text-base font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 md:py-4 md:text-lg md:px-10"
-                >
-                  Sign up
-                </Link>
+              <div className="flex items-center gap-6">
+                {user ? (
+                  <Link
+                    to="/dashboard"
+                    className="inline-flex items-center rounded-lg bg-white/10 px-4 py-2 text-sm font-medium text-white hover:bg-white/20 transition-colors"
+                  >
+                    Dashboard
+                  </Link>
+                ) : (
+                  <>
+                    <Link
+                      to="/signin"
+                      className="text-sm font-medium text-gray-300 hover:text-white transition-colors"
+                    >
+                      Sign in
+                    </Link>
+                    <Link
+                      to="/signup"
+                      className="inline-flex items-center rounded-lg bg-white/10 px-4 py-2 text-sm font-medium text-white hover:bg-white/20 transition-colors"
+                    >
+                      Get started
+                    </Link>
+                  </>
+                )}
               </div>
-            )}
+            </div>
+          </div>
+        </nav>
+
+        {/* Hero Section */}
+        <div className="pt-32 pb-20">
+          <div className="mx-auto max-w-7xl px-6 lg:px-8">
+            <motion.div 
+              className="mx-auto max-w-3xl text-center"
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.5 }}
+            >
+              <h1 className="text-5xl font-bold tracking-tight text-white sm:text-6xl">
+                Extract insights from any webpage with AI
+              </h1>
+              <p className="mt-6 text-lg leading-8 text-gray-400">
+                Settle is a powerful Chrome extension that helps you analyze and extract meaningful insights from any text on the web using advanced AI.
+              </p>
+              <div className="mt-10 flex items-center justify-center gap-6">
+                {user ? (
+                  <Link
+                    to="/dashboard"
+                    className="inline-flex items-center rounded-lg bg-white px-6 py-3 text-sm font-medium text-gray-900 hover:bg-gray-100 transition-colors"
+                  >
+                    Go to Dashboard
+                    <ArrowRight className="ml-2 h-4 w-4" />
+                  </Link>
+                ) : (
+                  <>
+                    <Link
+                      to="/signup"
+                      className="inline-flex items-center rounded-lg bg-white px-6 py-3 text-sm font-medium text-gray-900 hover:bg-gray-100 transition-colors"
+                    >
+                      Get started for free
+                      <ArrowRight className="ml-2 h-4 w-4" />
+                    </Link>
+                    <Link
+                      to="/pricing"
+                      className="text-sm font-medium text-gray-300 hover:text-white transition-colors"
+                    >
+                      View pricing <span aria-hidden="true">→</span>
+                    </Link>
+                  </>
+                )}
+              </div>
+            </motion.div>
+
+            {/* Features Section */}
+            <motion.div 
+              className="mx-auto mt-32 max-w-7xl"
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.5, delay: 0.2 }}
+            >
+              <div className="mx-auto max-w-2xl text-center">
+                <h2 className="text-3xl font-bold tracking-tight text-white">
+                  Everything you need to analyze content
+                </h2>
+                <p className="mt-4 text-lg leading-8 text-gray-400">
+                  Settle comes packed with features that help you extract, analyze, and understand content from any webpage.
+                </p>
+              </div>
+              <div className="mx-auto mt-16 max-w-2xl lg:max-w-none">
+                <dl className="grid grid-cols-1 gap-8 lg:grid-cols-4">
+                  {features.map((feature) => (
+                    <motion.div 
+                      key={feature.name}
+                      className="relative overflow-hidden rounded-lg border border-gray-800 bg-gray-900/50 p-8"
+                      whileHover={{ scale: 1.02 }}
+                      transition={{ type: "spring", stiffness: 300 }}
+                    >
+                      <dt className="flex items-center gap-3 text-lg font-medium text-white">
+                        <feature.icon className="h-5 w-5 flex-none text-gray-400" aria-hidden="true" />
+                        {feature.name}
+                      </dt>
+                      <dd className="mt-4 text-base text-gray-400">
+                        {feature.description}
+                      </dd>
+                    </motion.div>
+                  ))}
+                </dl>
+              </div>
+            </motion.div>
           </div>
         </div>
-
-        {/* Features Section */}
-        <div className="mt-24">
-          <div className="grid grid-cols-1 gap-8 sm:grid-cols-2 lg:grid-cols-3">
-            {/* Feature 1 */}
-            <div className="pt-6">
-              <div className="flow-root bg-white rounded-lg px-6 pb-8">
-                <div className="-mt-6">
-                  <div className="inline-flex items-center justify-center p-3 bg-indigo-500 rounded-md shadow-lg">
-                    <svg
-                      className="h-6 w-6 text-white"
-                      fill="none"
-                      viewBox="0 0 24 24"
-                      stroke="currentColor"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth="2"
-                        d="M4 6h16M4 12h16m-7 6h7"
-                      />
-                    </svg>
-                  </div>
-                  <h3 className="mt-8 text-lg font-medium text-gray-900 tracking-tight">
-                    Smart Selection
-                  </h3>
-                  <p className="mt-5 text-base text-gray-500">
-                    Select text from any webpage using our intuitive rectangle selection tool.
-                  </p>
-                </div>
-              </div>
-            </div>
-
-            {/* Feature 2 */}
-            <div className="pt-6">
-              <div className="flow-root bg-white rounded-lg px-6 pb-8">
-                <div className="-mt-6">
-                  <div className="inline-flex items-center justify-center p-3 bg-indigo-500 rounded-md shadow-lg">
-                    <svg
-                      className="h-6 w-6 text-white"
-                      fill="none"
-                      viewBox="0 0 24 24"
-                      stroke="currentColor"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth="2"
-                        d="M13 10V3L4 14h7v7l9-11h-7z"
-                      />
-                    </svg>
-                  </div>
-                  <h3 className="mt-8 text-lg font-medium text-gray-900 tracking-tight">
-                    Instant Analysis
-                  </h3>
-                  <p className="mt-5 text-base text-gray-500">
-                    Get immediate insights and analysis from your selected text.
-                  </p>
-                </div>
-              </div>
-            </div>
-
-            {/* Feature 3 */}
-            <div className="pt-6">
-              <div className="flow-root bg-white rounded-lg px-6 pb-8">
-                <div className="-mt-6">
-                  <div className="inline-flex items-center justify-center p-3 bg-indigo-500 rounded-md shadow-lg">
-                    <svg
-                      className="h-6 w-6 text-white"
-                      fill="none"
-                      viewBox="0 0 24 24"
-                      stroke="currentColor"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth="2"
-                        d="M5 13l4 4L19 7"
-                      />
-                    </svg>
-                  </div>
-                  <h3 className="mt-8 text-lg font-bold text-gray-900 tracking-tight">
-                    Seamless Integration
-                  </h3>
-                  <p className="mt-5 text-base text-gray-500 font-medium leading-relaxed">
-                    Works seamlessly with other &lt;b/io&gt; productivity tools.
-                  </p>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Footer */}
-        <footer className="mt-24">
-          <div className="border-t border-gray-200 py-8">
-            <p className="text-center text-base text-gray-400 font-medium tracking-tight">
-              © {new Date().getFullYear()} &lt;b/io&gt;
-            </p>
-          </div>
-        </footer>
       </div>
     </div>
   );

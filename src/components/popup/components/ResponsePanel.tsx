@@ -5,7 +5,8 @@ import { Card } from "../../ui/card";
 import { processExtractedText } from "../../../lib/ai-processor";
 import { Loader2 } from "lucide-react";
 import { auth, db, UserData } from '../../../lib/firebase';
-import { doc, onSnapshot } from 'firebase/firestore';
+import { doc, onSnapshot, DocumentSnapshot } from 'firebase/firestore';
+import { User } from 'firebase/auth';
 
 interface ResponsePanelProps {
   extractedText: string;
@@ -31,14 +32,14 @@ const ResponsePanel: React.FC<ResponsePanelProps> = ({
   const [query, setQuery] = useState('');
 
   useEffect(() => {
-    const unsubscribe = auth.onAuthStateChanged(user => {
+    const unsubscribe = auth.onAuthStateChanged((user: User | null) => {
       if (user) {
         console.log('User authenticated:', user.uid);
         const userDocRef = doc(db, 'users', user.uid);
-        const unsubscribeDoc = onSnapshot(userDocRef, (doc) => {
+        const unsubscribeDoc = onSnapshot(userDocRef, (doc: DocumentSnapshot) => {
           const data = doc.data() as UserData;
           console.log('User data:', data);
-        }, (error) => {
+        }, (error: Error) => {
           console.error('Error fetching user data:', error);
           setError('Error fetching user data. Please try signing in again.');
         });

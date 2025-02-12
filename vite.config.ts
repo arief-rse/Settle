@@ -83,6 +83,12 @@ export default defineConfig(({ mode }) => {
             return `assets/${assetInfo.name}`;
           },
           chunkFileNames: 'chunks/[name].[hash].js',
+          manualChunks: {
+            react: ['react', 'react-dom'],
+            firebase: ['firebase/app', 'firebase/auth', 'firebase/firestore'],
+            stripe: ['@stripe/stripe-js', '@stripe/react-stripe-js'],
+            ui: ['@radix-ui/react-dialog', '@radix-ui/react-dropdown-menu', '@radix-ui/react-label']
+          }
         },
       },
     },

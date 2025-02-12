@@ -1,10 +1,40 @@
-import { onRequest } from 'firebase-functions/v2/https';
+import * as functions from 'firebase-functions';
+import { CallableContext } from 'firebase-functions/v1/https';
+import type { Request, Response } from 'express';
 import Stripe from 'stripe';
 import { db, admin } from '../lib/firebase';
+
+// Extend Express Request type to include Firebase-specific properties
+interface FirebaseRequest extends Request {
+  rawBody: Buffer;
+}
+
+interface CheckoutSessionData {
+  priceId: string;
+  successUrl: string;
+  cancelUrl: string;
+}
+
+interface PortalSessionData {
+  customerId: string;
+  returnUrl: string;
+}
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
   apiVersion: '2023-10-16',
 });
+
+// Constants for subscription plans
+const SUBSCRIPTION_PLANS = {
+  FREE: {
+    priceId: process.env.STRIPE_FREE_PRICE_ID,
+    requestLimit: 5,
+  },
+  PRO: {
+    priceId: process.env.STRIPE_PRO_PRICE_ID,
+    requestLimit: 100,
+  },
+};
 
 interface CreatePaymentIntentData {
   amount: number;
@@ -28,10 +58,7 @@ interface CheckoutSessionRequest {
 }
 
 // Create a payment intent
-export const createPaymentIntent = onRequest({
-  cors: [/^chrome-extension:\/\/.*/],
-  region: 'us-central1',
-}, async (req, res) => {
+export const createPaymentIntent = functions.https.onRequest(async (req: Request, res: Response) => {
   try {
     // Handle preflight requests
     if (req.method === 'OPTIONS') {
@@ -67,10 +94,7 @@ export const createPaymentIntent = onRequest({
 });
 
 // Create a subscription
-export const createSubscription = onRequest({
-  cors: [/^chrome-extension:\/\/.*/],
-  region: 'us-central1',
-}, async (req, res) => {
+export const createSubscription = functions.https.onRequest(async (req: Request, res: Response) => {
   try {
     // Handle preflight requests
     if (req.method === 'OPTIONS') {
@@ -118,17 +142,13 @@ export const createSubscription = onRequest({
 });
 
 // Create a checkout session
-export const createCheckoutSession = onRequest({
-  cors: [/^chrome-extension:\/\/.*/],
-  maxInstances: 10,
-}, async (req, res) => {
+export const createStripeCheckout = functions.https.onRequest(async (req: Request, res: Response) => {
   try {
     // Handle preflight requests
     if (req.method === 'OPTIONS') {
       res.set('Access-Control-Allow-Methods', 'POST, OPTIONS');
-      res.set('Access-Control-Allow-Headers', 'Content-Type, Origin, Accept');
-      res.set('Access-Control-Allow-Credentials', 'true');
-      res.set('Access-Control-Max-Age', '3600');
+      res.set('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+      res.set('Access-Control-Allow-Origin', '*');
       res.status(204).send('');
       return;
     }
@@ -138,14 +158,18 @@ export const createCheckoutSession = onRequest({
       return;
     }
 
-    // Validate origin
-    const origin = req.headers.origin;
-    if (!origin?.startsWith('chrome-extension://')) {
-      res.status(403).json({ error: 'Invalid origin' });
+    // Verify Firebase ID token
+    const authHeader = req.headers.authorization;
+    if (!authHeader?.startsWith('Bearer ')) {
+      res.status(401).json({ error: 'Unauthorized' });
       return;
     }
 
-    const { priceId, successUrl, cancelUrl, metadata } = req.body as CheckoutSessionRequest;
+    const idToken = authHeader.split('Bearer ')[1];
+    const decodedToken = await admin.auth().verifyIdToken(idToken);
+    const uid = decodedToken.uid;
+
+    const { priceId, successUrl, cancelUrl } = req.body as CheckoutSessionData;
 
     if (!priceId || !successUrl || !cancelUrl) {
       res.status(400).json({ error: 'Missing required parameters' });
@@ -153,35 +177,35 @@ export const createCheckoutSession = onRequest({
     }
 
     // Get or create customer
-    let customer: string | undefined;
-    if (metadata?.userId) {
-      const customerSnapshot = await db
-        .collection('customers')
-        .where('userId', '==', metadata.userId)
-        .limit(1)
-        .get();
+    const customerSnapshot = await db
+      .collection('customers')
+      .where('userId', '==', uid)
+      .limit(1)
+      .get();
 
-      if (!customerSnapshot.empty) {
-        customer = customerSnapshot.docs[0].data().stripeCustomerId;
-      } else {
-        // Create a new customer
-        const customerData = await stripe.customers.create({
-          metadata: { userId: metadata.userId }
-        });
-        customer = customerData.id;
+    let customer: string;
+    if (!customerSnapshot.empty) {
+      customer = customerSnapshot.docs[0].data().stripeCustomerId;
+    } else {
+      // Create a new customer
+      const customerData = await stripe.customers.create({
+        metadata: { userId: uid },
+        email: decodedToken.email || undefined,
+      });
+      customer = customerData.id;
 
-        // Save customer data
-        await db.collection('customers').doc(metadata.userId).set({
-          userId: metadata.userId,
-          stripeCustomerId: customer,
-          createdAt: Date.now()
-        });
-      }
+      // Save customer data
+      await db.collection('customers').doc(uid).set({
+        userId: uid,
+        stripeCustomerId: customer,
+        email: decodedToken.email,
+        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+      });
     }
 
     // Create checkout session
     const session = await stripe.checkout.sessions.create({
-      mode: metadata?.type === 'subscription' ? 'subscription' : 'payment',
+      mode: 'subscription',
       success_url: successUrl,
       cancel_url: cancelUrl,
       customer: customer,
@@ -189,29 +213,68 @@ export const createCheckoutSession = onRequest({
         price: priceId,
         quantity: 1,
       }],
-      metadata: metadata,
+      metadata: {
+        userId: uid,
+        type: 'subscription',
+      },
       allow_promotion_codes: true,
       billing_address_collection: 'auto',
-      customer_creation: customer ? undefined : 'always',
     });
 
-    // Set CORS headers explicitly
-    res.set('Access-Control-Allow-Credentials', 'true');
     res.status(200).json({ sessionId: session.id });
   } catch (error) {
     console.error('Error creating checkout session:', error);
     res.status(500).json({ 
-      error: error instanceof Error ? error.message : 'Internal server error',
-      details: process.env.NODE_ENV === 'development' ? error : undefined
+      error: error instanceof Error ? error.message : 'Internal server error' 
+    });
+  }
+});
+
+// Create a customer portal session
+export const createStripePortal = functions.https.onRequest(async (req: Request, res: Response) => {
+  try {
+    // Handle preflight requests
+    if (req.method === 'OPTIONS') {
+      res.set('Access-Control-Allow-Methods', 'POST, OPTIONS');
+      res.set('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+      res.set('Access-Control-Allow-Origin', '*');
+      res.status(204).send('');
+      return;
+    }
+
+    if (req.method !== 'POST') {
+      res.status(405).json({ error: 'Method Not Allowed' });
+      return;
+    }
+
+    // Verify Firebase ID token
+    const authHeader = req.headers.authorization;
+    if (!authHeader?.startsWith('Bearer ')) {
+      res.status(401).json({ error: 'Unauthorized' });
+      return;
+    }
+
+    const idToken = authHeader.split('Bearer ')[1];
+    await admin.auth().verifyIdToken(idToken);
+
+    const { customerId, returnUrl } = req.body as PortalSessionData;
+
+    const portalSession = await stripe.billingPortal.sessions.create({
+      customer: customerId,
+      return_url: returnUrl,
+    });
+
+    res.status(200).json({ url: portalSession.url });
+  } catch (error) {
+    console.error('Error creating portal session:', error);
+    res.status(500).json({ 
+      error: error instanceof Error ? error.message : 'Internal server error' 
     });
   }
 });
 
 // Handle Stripe webhooks
-export const handleStripeWebhook = onRequest({
-  cors: true,
-  region: 'us-central1',
-}, async (request, response) => {
+export const handleStripeWebhook = functions.https.onRequest(async (request: FirebaseRequest, response: Response) => {
   const sig = request.headers['stripe-signature'];
 
   if (!sig || !process.env.STRIPE_WEBHOOK_SECRET || !request.rawBody) {
@@ -228,22 +291,20 @@ export const handleStripeWebhook = onRequest({
 
     // Handle the event
     switch (event.type) {
-      case 'payment_intent.succeeded':
-        await handlePaymentIntentSucceeded(event.data.object as Stripe.PaymentIntent);
-        break;
-      case 'checkout.session.completed':
-        await handleCheckoutSessionCompleted(event.data.object as Stripe.Checkout.Session);
-        break;
+      case 'customer.subscription.created':
       case 'customer.subscription.updated':
-        await handleSubscriptionUpdated(event.data.object as Stripe.Subscription);
+        await handleSubscriptionChange(event.data.object as Stripe.Subscription);
         break;
       case 'customer.subscription.deleted':
         await handleSubscriptionDeleted(event.data.object as Stripe.Subscription);
         break;
+      case 'checkout.session.completed':
+        await handleCheckoutSessionCompleted(event.data.object as Stripe.Checkout.Session);
+        break;
     }
 
     response.json({ received: true });
-  } catch (error: unknown) {
+  } catch (error) {
     console.error('Webhook Error:', error);
     response.status(400).send(`Webhook Error: ${error instanceof Error ? error.message : 'Unknown error'}`);
   }
@@ -251,40 +312,43 @@ export const handleStripeWebhook = onRequest({
 
 // Helper functions for webhook handlers
 async function handleCheckoutSessionCompleted(session: Stripe.Checkout.Session) {
-  const { userId, type, creditRequests } = session.metadata || {};
-  if (!userId) return;
+  const { userId } = session.metadata || {};
+  if (!userId || !session.subscription) return;
 
   const userRef = db.collection('users').doc(userId);
+  const subscriptionRef = db.collection('subscriptions').doc(session.subscription as string);
 
-  if (type === 'additional_request' && creditRequests) {
-    // Add credits for additional request purchase
-    await userRef.update({
-      remainingRequests: admin.firestore.FieldValue.increment(parseInt(creditRequests, 10))
-    });
-  } else if (type === 'subscription') {
-    // Update subscription status
-    await userRef.update({
-      isSubscribed: true,
-      subscriptionId: session.subscription
-    });
-  }
-}
+  // Get subscription details
+  const subscription = await stripe.subscriptions.retrieve(session.subscription as string);
+  const priceId = subscription.items.data[0].price.id;
 
-async function handlePaymentIntentSucceeded(paymentIntent: Stripe.PaymentIntent) {
-  const userId = paymentIntent.metadata.userId;
-  if (!userId) return;
+  // Update user document
+  await userRef.update({
+    isSubscribed: true,
+    subscriptionId: session.subscription,
+    customerId: session.customer as string,
+    subscription: {
+      status: subscription.status,
+      priceId: priceId,
+      currentPeriodEnd: admin.firestore.Timestamp.fromMillis(subscription.current_period_end * 1000),
+      cancelAtPeriodEnd: subscription.cancel_at_period_end,
+    },
+  });
 
-  await db.collection('payments').add({
+  // Create subscription document
+  await subscriptionRef.set({
     userId,
-    paymentIntentId: paymentIntent.id,
-    amount: paymentIntent.amount,
-    currency: paymentIntent.currency,
-    status: paymentIntent.status,
-    createdAt: admin.firestore.FieldValue.serverTimestamp()
+    status: subscription.status,
+    priceId: priceId,
+    customerId: session.customer,
+    currentPeriodEnd: admin.firestore.Timestamp.fromMillis(subscription.current_period_end * 1000),
+    cancelAtPeriodEnd: subscription.cancel_at_period_end,
+    createdAt: admin.firestore.FieldValue.serverTimestamp(),
+    updatedAt: admin.firestore.FieldValue.serverTimestamp(),
   });
 }
 
-async function handleSubscriptionUpdated(subscription: Stripe.Subscription) {
+async function handleSubscriptionChange(subscription: Stripe.Subscription) {
   const customerId = subscription.customer as string;
   const customerSnapshot = await db
     .collection('customers')
@@ -295,20 +359,68 @@ async function handleSubscriptionUpdated(subscription: Stripe.Subscription) {
   if (customerSnapshot.empty) return;
 
   const userId = customerSnapshot.docs[0].id;
-  await db.collection('subscriptions').doc(subscription.id).set({
+  const userRef = db.collection('users').doc(userId);
+  const subscriptionRef = db.collection('subscriptions').doc(subscription.id);
+
+  const priceId = subscription.items.data[0].price.id;
+  const requestLimit = Object.values(SUBSCRIPTION_PLANS).find(
+    plan => plan.priceId === priceId
+  )?.requestLimit || SUBSCRIPTION_PLANS.FREE.requestLimit;
+
+  // Update subscription document
+  await subscriptionRef.set({
     userId,
     status: subscription.status,
-    priceId: subscription.items.data[0].price.id,
-    currentPeriodEnd: admin.firestore.Timestamp.fromMillis(
-      subscription.current_period_end * 1000
-    ),
+    priceId: priceId,
+    customerId: customerId,
+    currentPeriodEnd: admin.firestore.Timestamp.fromMillis(subscription.current_period_end * 1000),
+    cancelAtPeriodEnd: subscription.cancel_at_period_end,
     updatedAt: admin.firestore.FieldValue.serverTimestamp(),
   }, { merge: true });
+
+  // Update user document
+  await userRef.update({
+    isSubscribed: subscription.status === 'active',
+    remainingRequests: requestLimit,
+    subscription: {
+      status: subscription.status,
+      priceId: priceId,
+      currentPeriodEnd: admin.firestore.Timestamp.fromMillis(subscription.current_period_end * 1000),
+      cancelAtPeriodEnd: subscription.cancel_at_period_end,
+    },
+  });
 }
 
 async function handleSubscriptionDeleted(subscription: Stripe.Subscription) {
-  await db.collection('subscriptions').doc(subscription.id).update({
-    status: subscription.status,
+  const customerId = subscription.customer as string;
+  const customerSnapshot = await db
+    .collection('customers')
+    .where('stripeCustomerId', '==', customerId)
+    .limit(1)
+    .get();
+
+  if (customerSnapshot.empty) return;
+
+  const userId = customerSnapshot.docs[0].id;
+  const userRef = db.collection('users').doc(userId);
+  const subscriptionRef = db.collection('subscriptions').doc(subscription.id);
+
+  // Update subscription document
+  await subscriptionRef.update({
+    status: 'canceled',
     canceledAt: admin.firestore.FieldValue.serverTimestamp(),
+    updatedAt: admin.firestore.FieldValue.serverTimestamp(),
   });
-} 
+
+  // Update user document
+  await userRef.update({
+    isSubscribed: false,
+    remainingRequests: SUBSCRIPTION_PLANS.FREE.requestLimit,
+    subscription: {
+      status: 'canceled',
+      priceId: SUBSCRIPTION_PLANS.FREE.priceId,
+      currentPeriodEnd: admin.firestore.Timestamp.fromMillis(subscription.current_period_end * 1000),
+      cancelAtPeriodEnd: true,
+    },
+  });
+}
