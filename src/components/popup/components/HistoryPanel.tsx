@@ -1,140 +1,180 @@
-import { useState, useEffect } from "react";
-import { Clock, Trash2 } from "lucide-react";
+import { useState } from 'react';
 import { Button } from "../../ui/button";
 import { ScrollArea } from "../../ui/scroll-area";
-import { auth } from '../../../lib/firebase';
-import { onAuthStateChanged, GoogleAuthProvider, signInWithPopup, User } from 'firebase/auth';
+import { ChevronLeft, Trash2, MessageCircle } from "lucide-react";
+import { formatDistanceToNow } from 'date-fns';
+import { toast } from 'sonner';
 
-interface HistoryItem {
+interface Selection {
   text: string;
-  response: {
+  timestamp: string;
+  source: 'text' | 'image' | 'both';
+  imageData?: string;
+  analysis?: {
     text: string;
     generatedImage?: string;
   };
-  source: 'text' | 'image' | 'both';
-  imageData?: string;
-  query: string;
-  timestamp: string;
+  query?: string;
 }
 
 interface HistoryPanelProps {
+  selections: Selection[];
   onClose: () => void;
 }
 
-const HistoryPanel = ({ onClose }: HistoryPanelProps) => {
-  const [user, setUser] = useState<any>(null);
-  const [history, setHistory] = useState<HistoryItem[]>([]);
-  const [authError, setAuthError] = useState<string | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
+export default function HistoryPanel({ selections, onClose }: HistoryPanelProps) {
+  const [selectedItem, setSelectedItem] = useState<Selection | null>(null);
 
-  useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (currentUser: User | null) => {
-      setUser(currentUser);
-      setAuthError(null);
-      if (currentUser) {
-        const savedHistory = localStorage.getItem("analysisHistory");
-        setHistory(savedHistory ? JSON.parse(savedHistory) : []);
-      }
-    });
-    return () => unsubscribe();
-  }, []);
-
-  const handleGoogleSignIn = async () => {
-    setIsLoading(true);
-    setAuthError(null);
+  const handleDeleteItem = async (timestamp: string) => {
     try {
-      const provider = new GoogleAuthProvider();
-      await signInWithPopup(auth, provider);
-    } catch (error: any) {
-      console.error('Google Sign-in Error:', error);
-      setAuthError(
-        error.code === 'auth/popup-blocked' 
-          ? 'Please allow popups for authentication'
-          : 'Failed to sign in with Google. Please try again.'
-      );
-    } finally {
-      setIsLoading(false);
+      const updatedSelections = selections.filter(item => item.timestamp !== timestamp);
+      await chrome.storage.local.set({ selections: updatedSelections });
+      toast.success('Item deleted successfully');
+      
+      if (selectedItem?.timestamp === timestamp) {
+        setSelectedItem(null);
+      }
+    } catch (error) {
+      console.error('Error deleting item:', error);
+      toast.error('Failed to delete item');
     }
   };
 
-  const clearHistory = () => {
-    localStorage.setItem("analysisHistory", "[]");
-    setHistory([]);
-    onClose();
-  };
-
-  if (!user) {
+  if (selectedItem) {
     return (
-      <div className="flex flex-col items-center justify-center p-8 text-gray-500">
-        <p className="text-center mb-4">Please sign in to view your analysis history</p>
-        {authError && (
-          <p className="text-red-500 text-sm text-center mb-4">{authError}</p>
-        )}
-        <Button
-          onClick={handleGoogleSignIn}
-          disabled={isLoading}
-          className="flex items-center gap-2 bg-white text-gray-700 border hover:bg-gray-50"
-        >
-          <img src="/google.svg" alt="Google" className="w-4 h-4" />
-          {isLoading ? 'Signing in...' : 'Sign in with Google'}
-        </Button>
+      <div className="h-full flex flex-col">
+        <div className="flex items-center justify-between mb-4">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setSelectedItem(null)}
+            className="flex items-center gap-2"
+          >
+            <ChevronLeft className="h-4 w-4" />
+            Back
+          </Button>
+          <span className="text-sm text-gray-500">
+            {formatDistanceToNow(new Date(selectedItem.timestamp), { addSuffix: true })}
+          </span>
+        </div>
+        
+        <ScrollArea className="flex-1">
+          <div className="space-y-4">
+            {selectedItem.imageData && (
+              <div className="rounded-lg overflow-hidden">
+                <img 
+                  src={selectedItem.imageData} 
+                  alt="Selected content"
+                  className="w-full h-auto"
+                />
+              </div>
+            )}
+            <div className="p-4 bg-gray-50 rounded-lg">
+              <p className="text-sm whitespace-pre-wrap">{selectedItem.text}</p>
+            </div>
+
+            {selectedItem.analysis && (
+              <div className="space-y-3">
+                <div className="flex items-center gap-2">
+                  <MessageCircle className="h-4 w-4 text-indigo-600" />
+                  <h4 className="font-medium text-sm text-gray-600">Analysis</h4>
+                </div>
+                <div className="p-4 bg-white border rounded-lg">
+                  {selectedItem.query && (
+                    <div className="mb-2 text-sm font-medium text-gray-900">
+                      Q: {selectedItem.query}
+                    </div>
+                  )}
+                  <div className="text-sm text-gray-600">
+                    A: {selectedItem.analysis.text}
+                  </div>
+                  {selectedItem.analysis.generatedImage && (
+                    <div className="mt-4">
+                      <h5 className="text-sm font-medium text-gray-600 mb-2">Generated Visualization</h5>
+                      <div className="relative aspect-video w-full overflow-hidden rounded-lg border bg-gray-50">
+                        <img 
+                          src={selectedItem.analysis.generatedImage} 
+                          alt="AI-generated visualization"
+                          className="object-contain w-full h-full"
+                        />
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+        </ScrollArea>
       </div>
     );
   }
 
   return (
-    <div className="space-y-4">
-      {history.length === 0 ? (
-        <div className="flex flex-col items-center justify-center p-8 text-gray-500">
-          <Clock className="h-8 w-8 mb-2" />
-          <p>No analysis history yet</p>
-        </div>
-      ) : (
-        <>
-          <div className="flex justify-end">
-            <Button 
-              variant="ghost" 
-              size="sm" 
-              onClick={clearHistory} 
-              className="text-red-600 hover:text-red-700"
-            >
-              <Trash2 className="h-4 w-4 mr-2" />
-              Clear History
-            </Button>
+    <div className="h-full flex flex-col">
+      <div className="flex items-center justify-between mb-4">
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={onClose}
+          className="flex items-center gap-2"
+        >
+          <ChevronLeft className="h-4 w-4" />
+          Back
+        </Button>
+      </div>
+
+      <ScrollArea className="flex-1">
+        {selections.length === 0 ? (
+          <div className="h-full flex items-center justify-center">
+            <p className="text-sm text-gray-500">No history items yet</p>
           </div>
-          
-          <ScrollArea className="h-[400px]">
-            <div className="space-y-4">
-              {history.map((item, index) => (
-                <div
-                  key={index}
-                  className="p-4 border rounded-lg hover:bg-gray-50 dark:hover:bg-gray-900 transition-colors"
-                >
-                  <div className="flex justify-between items-start mb-2">
-                    <p className="text-sm text-gray-500 dark:text-gray-400">
-                      {new Date(item.timestamp).toLocaleString()}
-                    </p>
-                    <span className="text-xs px-2 py-1 bg-gray-100 dark:bg-gray-800 rounded">
-                      {item.source}
+        ) : (
+          <div className="space-y-2">
+            {selections.map((item) => (
+              <div
+                key={item.timestamp}
+                className="p-4 bg-gray-50 hover:bg-gray-100 rounded-lg cursor-pointer relative group"
+                onClick={() => setSelectedItem(item)}
+              >
+                <div className="flex justify-between items-start gap-4">
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm line-clamp-2">{item.text}</p>
+                    {item.analysis && (
+                      <div className="flex items-center gap-1 mt-1">
+                        <MessageCircle className="h-3 w-3 text-indigo-600" />
+                        <span className="text-xs text-indigo-600">Analysis available</span>
+                      </div>
+                    )}
+                    <span className="text-xs text-gray-500 mt-1 block">
+                      {formatDistanceToNow(new Date(item.timestamp), { addSuffix: true })}
                     </span>
                   </div>
-                  <p className="text-sm font-medium mb-2">Q: {item.query}</p>
-                  <p className="text-sm text-gray-600 dark:text-gray-300">A: {item.response.text}</p>
-                  {item.response.generatedImage && (
-                    <img 
-                      src={item.response.generatedImage} 
-                      alt="Generated visualization"
-                      className="mt-2 rounded-lg w-full h-auto"
-                    />
-                  )}
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="opacity-0 group-hover:opacity-100 transition-opacity"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleDeleteItem(item.timestamp);
+                    }}
+                  >
+                    <Trash2 className="h-4 w-4 text-gray-500 hover:text-red-500" />
+                  </Button>
                 </div>
-              ))}
-            </div>
-          </ScrollArea>
-        </>
-      )}
+                {item.imageData && (
+                  <div className="mt-2 rounded overflow-hidden">
+                    <img 
+                      src={item.imageData} 
+                      alt="Selected content"
+                      className="w-full h-20 object-cover"
+                    />
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+      </ScrollArea>
     </div>
   );
-};
-
-export default HistoryPanel;
+}

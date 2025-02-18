@@ -56,7 +56,7 @@ const pricingTiers: PricingTier[] = [
 
 export default function Pricing() {
   const stripe = useStripe();
-  const { user, userData } = useAuth();
+  const { user } = useAuth();
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
   const [currentSubscription, setCurrentSubscription] = useState<{

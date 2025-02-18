@@ -1,10 +1,11 @@
-import React from 'react';
-import { createContext, useContext, useEffect, useState } from 'react';
+import React, { createContext, useContext, useEffect, useState } from 'react';
 import { 
-  User,
-  signInWithEmailAndPassword,
+  User, 
+  onAuthStateChanged, 
+  signInWithEmailAndPassword, 
   createUserWithEmailAndPassword,
   signInWithPopup,
+  GoogleAuthProvider,
   signOut as firebaseSignOut
 } from 'firebase/auth';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
@@ -20,20 +21,43 @@ interface AuthContextType {
   signOut: () => Promise<void>;
 }
 
-const AuthContext = createContext<AuthContextType | null>(null);
+const AuthContext = createContext<AuthContextType>({
+  user: null,
+  userData: null,
+  loading: true,
+  signIn: async () => {},
+  signUp: async () => {},
+  signInWithGoogle: async () => {},
+  signOut: async () => {},
+});
 
-// Function to update extension state
-async function updateExtensionState(userData: UserData | null) {
+// Function to notify extension of auth state changes
+async function notifyExtension(user: UserData | null) {
   const extensionId = import.meta.env.VITE_EXTENSION_ID;
-  if (!extensionId) return;
+  if (!extensionId) {
+    console.warn('Extension ID not configured');
+    return;
+  }
 
   try {
+    console.log('Notifying extension of auth state change:', { extensionId, user });
     await chrome.runtime.sendMessage(extensionId, {
-      type: userData ? 'SET_USER_DATA' : 'CLEAR_USER_DATA',
-      userData
+      type: 'AUTH_STATE_CHANGED',
+      user: user ? {
+        uid: user.uid,
+        email: user.email,
+        displayName: user.displayName,
+        photoURL: user.photoURL,
+        isSubscribed: user.isSubscribed,
+        remainingRequests: user.remainingRequests,
+        subscription: user.subscription
+      } : null
     });
   } catch (error) {
-    console.error('Error updating extension state:', error);
+    // Don't throw error if extension is not installed
+    if (!error.message?.includes('Could not establish connection')) {
+      console.error('Failed to notify extension:', error);
+    }
   }
 }
 
@@ -43,7 +67,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const unsubscribe = auth.onAuthStateChanged(async (user) => {
+    const unsubscribe = onAuthStateChanged(auth, async (user) => {
       setUser(user);
       
       if (user) {
@@ -52,13 +76,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         if (userDoc.exists()) {
           const data = userDoc.data() as UserData;
           setUserData(data);
-          // Update extension state
-          await updateExtensionState(data);
+          // Notify extension
+          await notifyExtension(data);
         }
       } else {
         setUserData(null);
-        // Clear extension state
-        await updateExtensionState(null);
+        // Notify extension of logout
+        await notifyExtension(null);
       }
       
       setLoading(false);
@@ -86,7 +110,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     };
     
     await setDoc(doc(db, 'users', user.uid), userData);
-    await updateExtensionState(userData);
+    await notifyExtension(userData);
   };
 
   const signInWithGoogle = async () => {
@@ -108,13 +132,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       };
       
       await setDoc(doc(db, 'users', user.uid), userData);
-      await updateExtensionState(userData);
+      await notifyExtension(userData);
     }
   };
 
   const signOut = async () => {
     await firebaseSignOut(auth);
-    await updateExtensionState(null);
+    await notifyExtension(null);
   };
 
   return (
@@ -133,9 +157,5 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 }
 
 export function useAuth() {
-  const context = useContext(AuthContext);
-  if (!context) {
-    throw new Error('useAuth must be used within an AuthProvider');
-  }
-  return context;
+  return useContext(AuthContext);
 } 

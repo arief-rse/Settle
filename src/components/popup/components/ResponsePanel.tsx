@@ -1,12 +1,20 @@
-import { useState, useEffect } from "react";
-import { X, MessageCircle, Image as ImageIcon, Send } from "lucide-react";
+import { useState } from 'react';
 import { Button } from "../../ui/button";
-import { Card } from "../../ui/card";
-import { processExtractedText } from "../../../lib/ai-processor";
-import { Loader2 } from "lucide-react";
-import { auth, db, UserData } from '../../../lib/firebase';
-import { doc, onSnapshot, DocumentSnapshot } from 'firebase/firestore';
-import { User } from 'firebase/auth';
+import { ScrollArea } from "../../ui/scroll-area";
+import { ChevronLeft, Copy, Check, History, Send, Loader2 } from "lucide-react";
+import { toast } from 'sonner';
+
+interface Selection {
+  text: string;
+  timestamp: string;
+  source: 'text' | 'image' | 'both';
+  imageData?: string;
+  analysis?: {
+    text: string;
+    generatedImage?: string;
+  };
+  query?: string;
+}
 
 interface ResponsePanelProps {
   extractedText: string;
@@ -14,42 +22,65 @@ interface ResponsePanelProps {
   onHistory: () => void;
   source: 'text' | 'image' | 'both';
   imageData?: string;
-  userData: UserData;
 }
 
-const ResponsePanel: React.FC<ResponsePanelProps> = ({
+interface User {
+  uid: string;
+  email: string | null;
+  isSubscribed: boolean;
+  remainingRequests: number;
+}
+
+export default function ResponsePanel({
   extractedText,
   onClose,
   onHistory,
   source,
-  imageData,
-  userData
-}) => {
-  const [isExpanded, setIsExpanded] = useState(true);
-  const [isLoading, setIsLoading] = useState(false);
-  const [response, setResponse] = useState<{ text: string; generatedImage?: string } | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  imageData
+}: ResponsePanelProps) {
+  const [copied, setCopied] = useState(false);
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [query, setQuery] = useState('');
+  const [analysis, setAnalysis] = useState<{ text: string; generatedImage?: string; } | undefined>();
+  const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    const unsubscribe = auth.onAuthStateChanged((user: User | null) => {
-      if (user) {
-        console.log('User authenticated:', user.uid);
-        const userDocRef = doc(db, 'users', user.uid);
-        const unsubscribeDoc = onSnapshot(userDocRef, (doc: DocumentSnapshot) => {
-          const data = doc.data() as UserData;
-          console.log('User data:', data);
-        }, (error: Error) => {
-          console.error('Error fetching user data:', error);
-          setError('Error fetching user data. Please try signing in again.');
-        });
-        return () => unsubscribeDoc();
-      } else {
-        console.log('No user authenticated');
+  const checkAuthStatus = async (): Promise<User | null> => {
+    try {
+      // Try to get auth status from web app
+      const response = await fetch('http://localhost:5173/api/auth/status', {
+        credentials: 'include', // Important: include cookies
+        headers: {
+          'Accept': 'application/json'
+        }
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to get auth status');
       }
-    });
-    return () => unsubscribe();
-  }, []);
+
+      const data = await response.json();
+      if (!data.user) {
+        throw new Error('Not authenticated');
+      }
+
+      return data.user;
+    } catch (error) {
+      console.error('Auth check failed:', error);
+      return null;
+    }
+  };
+
+  const handleCopy = async () => {
+    try {
+      await navigator.clipboard.writeText(extractedText);
+      setCopied(true);
+      toast.success('Text copied to clipboard');
+      setTimeout(() => setCopied(false), 2000);
+    } catch (error) {
+      console.error('Error copying text:', error);
+      toast.error('Failed to copy text');
+    }
+  };
 
   const handleAnalyze = async () => {
     if (!query.trim()) {
@@ -57,162 +88,207 @@ const ResponsePanel: React.FC<ResponsePanelProps> = ({
       return;
     }
 
-    setIsLoading(true);
+    setIsAnalyzing(true);
     setError(null);
-    try {
-      const apiKey = import.meta.env.VITE_ANTHROPIC_API_KEY;
-      if (!apiKey) {
-        throw new Error('API key not found. Please set VITE_ANTHROPIC_API_KEY in your environment.');
-      }
-      
-      const result = await processExtractedText({ 
-        text: extractedText, 
-        source,
-        imageData,
-        query: query.trim()
-      }, apiKey, userData);
-      setResponse(result);
 
-      // Save to history
-      const history = JSON.parse(localStorage.getItem("analysisHistory") || "[]");
-      history.unshift({
+    try {
+      // Check auth status directly with web app
+      const user = await checkAuthStatus();
+      
+      if (!user) {
+        // Open the web app auth page in a new tab
+        chrome.tabs.create({ url: 'http://localhost:5173/signin' });
+        throw new Error('Please sign in to analyze content');
+      }
+
+      if (!user.isSubscribed && user.remainingRequests <= 0) {
+        // Open the pricing page in a new tab
+        chrome.tabs.create({ url: 'http://localhost:5173/pricing' });
+        throw new Error('You have reached your request limit. Please upgrade to continue.');
+      }
+
+      // Send analysis request to web app
+      const response = await fetch('http://localhost:5173/api/analyze', {
+        method: 'POST',
+        credentials: 'include', // Important: include cookies
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          text: extractedText,
+          source,
+          imageData,
+          query: query.trim()
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Failed to analyze content');
+      }
+
+      const result = await response.json();
+      setAnalysis(result);
+
+      // Save to history with analysis
+      const selection: Selection = {
         text: extractedText,
-        response: result,
+        timestamp: new Date().toISOString(),
         source,
         imageData,
-        query: query.trim(),
-        timestamp: new Date().toISOString()
-      });
-      localStorage.setItem("analysisHistory", JSON.stringify(history.slice(0, 50))); // Keep last 50 items
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to analyze content");
+        analysis: result,
+        query: query.trim()
+      };
+
+      const { selections = [] } = await chrome.storage.local.get(['selections']);
+      const updatedSelections = [selection, ...selections].slice(0, 50);
+      await chrome.storage.local.set({ selections: updatedSelections });
+      
+      toast.success('Analysis completed and saved');
+    } catch (error) {
+      console.error('Error analyzing content:', error);
+      setError(error instanceof Error ? error.message : 'Failed to analyze content');
     } finally {
-      setIsLoading(false);
+      setIsAnalyzing(false);
     }
   };
 
-  if (!isExpanded) {
-    return (
-      <button
-        onClick={() => setIsExpanded(true)}
-        className="fixed bottom-8 right-8 p-3 bg-white rounded-full shadow-lg hover:bg-gray-50 transition-all duration-200 z-[2147483647]"
-      >
-        <MessageCircle className="w-6 h-6 text-indigo-600" />
-      </button>
-    );
-  }
+  const handleSave = async () => {
+    try {
+      const selection: Selection = {
+        text: extractedText,
+        timestamp: new Date().toISOString(),
+        source,
+        imageData,
+        analysis,
+        query: query.trim()
+      };
+
+      const { selections = [] } = await chrome.storage.local.get(['selections']);
+      const updatedSelections = [selection, ...selections].slice(0, 50);
+      await chrome.storage.local.set({ selections: updatedSelections });
+      
+      toast.success('Selection saved to history');
+      onHistory();
+    } catch (error) {
+      console.error('Error saving selection:', error);
+      toast.error('Failed to save selection');
+    }
+  };
 
   return (
-    <Card className="w-full max-w-2xl">
-      <div className="flex items-center justify-between p-4 border-b bg-gray-50/50 dark:bg-gray-900/50">
+    <div className="h-full flex flex-col">
+      <div className="flex items-center justify-between mb-4">
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={onClose}
+          className="flex items-center gap-2"
+        >
+          <ChevronLeft className="h-4 w-4" />
+          Back
+        </Button>
         <div className="flex items-center gap-2">
-          {source === 'image' || source === 'both' ? (
-            <ImageIcon className="h-4 w-4 text-gray-500 dark:text-gray-400" />
-          ) : (
-            <MessageCircle className="h-4 w-4 text-gray-500 dark:text-gray-400" />
-          )}
-          <h3 className="text-lg font-semibold dark:text-gray-100">AI Analysis</h3>
-         
-        </div>
-        <div className="flex gap-2">
           <Button
-            variant="outline"
+            variant="ghost"
             size="sm"
-            onClick={onClose}
-            className="flex items-center gap-1.5 text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white"
+            onClick={handleCopy}
+            className="flex items-center gap-2"
           >
-            <X className="h-4 w-4" />
-           
+            {copied ? (
+              <Check className="h-4 w-4" />
+            ) : (
+              <Copy className="h-4 w-4" />
+            )}
+            {copied ? 'Copied!' : 'Copy'}
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={handleSave}
+            className="flex items-center gap-2"
+          >
+            <History className="h-4 w-4" />
+            Save
           </Button>
         </div>
       </div>
 
-      <div className="p-4 space-y-6">
-        {(source === 'image' || source === 'both') && imageData && (
-          <div className="space-y-3">
-            <h4 className="font-medium text-sm text-gray-600">Selected Image</h4>
-            <div className="relative aspect-video w-full overflow-hidden rounded-lg border bg-gray-50">
+      <ScrollArea className="flex-1">
+        <div className="space-y-4">
+          {imageData && (
+            <div className="rounded-lg overflow-hidden">
               <img 
                 src={imageData} 
                 alt="Selected content"
-                className="object-contain w-full h-full"
+                className="w-full h-auto"
               />
             </div>
+          )}
+          <div className="p-4 bg-gray-50 rounded-lg">
+            <p className="text-sm whitespace-pre-wrap">{extractedText}</p>
           </div>
-        )}
 
-        {extractedText && (
           <div className="space-y-3">
-            <h4 className="font-medium text-sm text-gray-600">
-              {source === 'image' ? 'OCR Text' : source === 'both' ? 'Combined Text' : 'Selected Text'}
-            </h4>
-            <div className="min-h-[100px] p-4 bg-white border rounded-lg text-sm text-gray-700 shadow-inner">
-              {extractedText}
-            </div>
-          </div>
-        )}
-
-        <div className="space-y-3">
-          <h4 className="font-medium text-sm text-gray-600 dark:text-gray-400">Ask a Question</h4>
-          <div className="flex gap-2">
-            <input
-              type="text"
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && handleAnalyze()}
-              placeholder="Ask anything about the selected content..."
-              className="flex-1 px-4 py-2 border dark:border-gray-800 rounded-lg text-sm bg-white dark:bg-gray-900 text-gray-900 dark:text-white placeholder:text-gray-500 dark:placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:focus:ring-indigo-400"
-            />
-            <Button 
-              onClick={handleAnalyze}
-              disabled={isLoading || !query.trim()}
-              className="bg-indigo-600 hover:bg-indigo-700 text-white"
-            >
-              {isLoading ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : (
-                <Send className="h-4 w-4" />
-              )}
-            </Button>
-          </div>
-        </div>
-
-        {error && (
-          <div className="p-4 bg-red-50 border border-red-100 text-red-600 rounded-lg text-sm">
-            {error}
-          </div>
-        )}
-
-        {response && (
-          <div className="space-y-3">
-            <div className="flex items-center justify-between">
-              <h4 className="font-medium text-sm text-gray-600 dark:text-gray-400">Analysis</h4>
-              <Button variant="ghost" size="sm" onClick={onHistory}>
-                View History
+            <h4 className="font-medium text-sm text-gray-600">Ask a Question</h4>
+            <div className="flex gap-2">
+              <input
+                type="text"
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && handleAnalyze()}
+                placeholder="Ask anything about the selected content..."
+                className="flex-1 px-4 py-2 border rounded-lg text-sm bg-white text-gray-900 placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              />
+              <Button 
+                onClick={handleAnalyze}
+                disabled={isAnalyzing || !query.trim()}
+                className="bg-indigo-600 hover:bg-indigo-700 text-white"
+              >
+                {isAnalyzing ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Send className="h-4 w-4" />
+                )}
               </Button>
             </div>
-            <div className="space-y-4">
-              <div className="p-4 bg-white dark:bg-gray-900 border dark:border-gray-800 rounded-lg text-sm text-gray-900 dark:text-white whitespace-pre-wrap shadow-sm">
-                {response.text}
-              </div>
-              {response.generatedImage && (
-                <div className="space-y-2">
-                  <h4 className="font-medium text-sm text-gray-600 dark:text-gray-400">Generated Visualization</h4>
-                  <div className="relative aspect-video w-full overflow-hidden rounded-lg border dark:border-gray-800 bg-gray-50 dark:bg-gray-900">
-                    <img 
-                      src={response.generatedImage} 
-                      alt="AI-generated visualization"
-                      className="object-contain w-full h-full"
-                    />
-                  </div>
-                </div>
-              )}
-            </div>
           </div>
-        )}
-      </div>
-    </Card>
-  );
-};
 
-export default ResponsePanel;
+          {error && (
+            <div className="p-4 bg-red-50 border border-red-100 text-red-600 rounded-lg text-sm">
+              {error}
+            </div>
+          )}
+
+          {analysis && (
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <h4 className="font-medium text-sm text-gray-600">Analysis</h4>
+                <Button variant="ghost" size="sm" onClick={onHistory}>
+                  View History
+                </Button>
+              </div>
+              <div className="space-y-4">
+                <div className="p-4 bg-white border rounded-lg text-sm text-gray-900 whitespace-pre-wrap shadow-sm">
+                  {analysis.text}
+                </div>
+                {analysis.generatedImage && (
+                  <div className="space-y-2">
+                    <h4 className="font-medium text-sm text-gray-600">Generated Visualization</h4>
+                    <div className="relative aspect-video w-full overflow-hidden rounded-lg border bg-gray-50">
+                      <img 
+                        src={analysis.generatedImage} 
+                        alt="AI-generated visualization"
+                        className="object-contain w-full h-full"
+                      />
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+        </div>
+      </ScrollArea>
+    </div>
+  );
+}

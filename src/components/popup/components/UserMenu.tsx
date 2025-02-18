@@ -9,48 +9,91 @@ import {
   DropdownMenuTrigger,
 } from "../../ui/dropdown-menu";
 import { Settings, LogOut, User, Crown, CreditCard, Loader2 } from "lucide-react";
+import { Progress } from "../../ui/progress";
+import { toast } from 'sonner';
+// These imports are used in this file:
+// - signOut is used in handleSignOut() function
+// - auth is used in handleSignOut() function
+// - db and doc/onSnapshot aren't used in this file and can be removed
 import { auth } from '../../../lib/firebase';
 import { signOut } from 'firebase/auth';
-import type { UserData } from '../../../lib/firebase';
-import { Progress } from "../../ui/progress";
-import { createSubscriptionCheckout } from '../../../lib/stripe-client';
-import { toast } from 'sonner';
+import type { UserData } from '../../../lib/types';
+
+const WEB_APP_URL = 'http://localhost:5173';
+
+interface Selection {
+  text: string;
+  timestamp: string;
+  source: 'text' | 'image' | 'both';
+  imageData?: string;
+}
 
 interface UserMenuProps {
   userData: UserData | null;
+  selections: Selection[];
 }
 
-export function UserMenu({ userData }: UserMenuProps) {
+export function UserMenu({ userData, selections }: UserMenuProps) {
   const [isLoading, setIsLoading] = useState(false);
 
   const handleSignOut = async () => {
     try {
+      setIsLoading(true);
       await signOut(auth);
-      // Clear user data from storage
-      chrome.storage.local.remove('userData');
+      await chrome.storage.local.remove(['user']);
+      toast.success('Signed out successfully');
     } catch (error) {
       console.error('Error signing out:', error);
       toast.error('Failed to sign out');
-    }
-  };
-
-  const handleUpgradeClick = async () => {
-    if (!userData) return;
-    
-    setIsLoading(true);
-    try {
-      await createSubscriptionCheckout(userData.uid);
-    } catch (error) {
-      console.error('Error creating subscription:', error);
-      toast.error('Failed to start subscription process. Please try again.');
     } finally {
       setIsLoading(false);
     }
   };
 
+  const handleUpgradeClick = () => {
+    // Open pricing page in new tab
+    chrome.tabs.create({ url: `${WEB_APP_URL}/pricing` });
+    window.close();
+  };
+
+  const handleClearHistory = async () => {
+    try {
+      await chrome.storage.local.set({ selections: [] });
+      toast.success('History cleared successfully');
+    } catch (error) {
+      console.error('Error clearing history:', error);
+      toast.error('Failed to clear history');
+    }
+  };
+
+  const handleExportHistory = () => {
+    try {
+      const exportData = {
+        selections,
+        exportDate: new Date().toISOString()
+      };
+
+      const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `settle-history-${new Date().toISOString().split('T')[0]}.json`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+
+      toast.success('History exported successfully');
+    } catch (error) {
+      console.error('Error exporting history:', error);
+      toast.error('Failed to export history');
+    }
+  };
+
   if (!userData) return null;
 
-  const progressPercentage = (userData.remainingRequests / 5) * 100;
+  const progressPercentage = userData.isSubscribed ? 100 : (userData.remainingRequests / 5) * 100;
 
   return (
     <DropdownMenu>
@@ -115,7 +158,15 @@ export function UserMenu({ userData }: UserMenuProps) {
           </DropdownMenuItem>
         )}
 
-        <DropdownMenuItem>
+        <DropdownMenuItem onClick={handleExportHistory}>
+          Export History
+        </DropdownMenuItem>
+
+        <DropdownMenuItem onClick={handleClearHistory}>
+          Clear History
+        </DropdownMenuItem>
+
+        <DropdownMenuItem onClick={() => chrome.tabs.create({ url: `${WEB_APP_URL}/dashboard` })}>
           <Settings className="mr-2 h-4 w-4" />
           Settings
         </DropdownMenuItem>

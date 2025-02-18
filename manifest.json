@@ -5,21 +5,55 @@
   "description": "Smart Text Selection by <b/io>",
   "permissions": [
     "storage",
-    "tabs"
+    "tabs",
+    "activeTab",
+    "scripting",
+    "offscreen",
+    "identity"
   ],
   "host_permissions": [
-    "https://settle.bangmil.io/*"
+    "http://localhost:5173/*",
+    "http://localhost/*",
+    "https://*.stripe.com/*",
+    "https://www.googleapis.com/*"
   ],
-  "externally_connectable": {
-    "matches": [
-      "https://settle.bangmil.io/*"
+  "oauth2": {
+    "client_id": "${GOOGLE_CLIENT_ID}.apps.googleusercontent.com",
+    "scopes": [
+      "https://www.googleapis.com/auth/userinfo.email",
+      "https://www.googleapis.com/auth/userinfo.profile"
     ]
   },
+  "externally_connectable": {
+    "matches": [
+      "http://localhost:5173/*",
+      "http://localhost/*"
+    ],
+    "accepts_messages_from": ["http://localhost:5173"]
+  },
   "action": {
-    "default_popup": "index.html"
+    "default_popup": "index.html",
+    "default_icon": {
+      "16": "icon-16.png",
+      "48": "icon-48.png",
+      "128": "icon-128.png"
+    }
+  },
+  "icons": {
+    "16": "icon-16.png",
+    "48": "icon-48.png",
+    "128": "icon-128.png"
   },
   "background": {
-    "service_worker": "background/index.js",
+    "service_worker": "background.js",
     "type": "module"
-  }
+  },
+  "content_security_policy": {
+    "extension_pages": "script-src 'self' 'wasm-unsafe-eval' https://*.stripe.com; object-src 'self'; connect-src 'self' http://localhost:5173 http://localhost:* https://*.stripe.com https://*.google.com https://*.googleapis.com https://*.firebaseio.com https://*.cloudfunctions.net https://*.a.run.app wss://*.firebaseio.com https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://api.anthropic.com",
+    "sandbox": "script-src 'self' 'wasm-unsafe-eval'; object-src 'self'"
+  },
+  "web_accessible_resources": [{
+    "resources": ["index.html", "content.js", "offscreen.html"],
+    "matches": ["<all_urls>"]
+  }]
 } 

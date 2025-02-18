@@ -2,10 +2,11 @@ import { initializeApp } from 'firebase/app';
 import { 
   getAuth, 
   setPersistence, 
-  indexedDBLocalPersistence,
+  browserLocalPersistence,
   GoogleAuthProvider,
   signInWithCredential,
-  User
+  User,
+  connectAuthEmulator
 } from 'firebase/auth';
 import { 
   getFirestore, 
@@ -15,34 +16,51 @@ import {
   setDoc, 
   getDoc,
   collection,
-  getDocs
+  getDocs,
+  connectFirestoreEmulator,
+  enableIndexedDbPersistence
 } from 'firebase/firestore';
+import type { UserData } from './types';
 
 // Your web app's Firebase configuration
 const firebaseConfig = {
-  apiKey: "AIzaSyB46J7O_JYx6diTWjVQxUPgj65F0VasF_Y",
-  authDomain: "settle-75bb2.firebaseapp.com",
-  projectId: "settle-75bb2",
-  storageBucket: "settle-75bb2.firebasestorage.app",
-  messagingSenderId: "908976015864",
-  appId: "1:908976015864:web:df734cc507a3cab236ee0d"
+  apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
+  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
+  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
+  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
+  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
+  appId: import.meta.env.VITE_FIREBASE_APP_ID
 };
 
 // Initialize Firebase
 const app = initializeApp(firebaseConfig);
 
-// Initialize Firebase Authentication and get a reference to the service
-const auth = getAuth(app);
+// Initialize Auth and Firestore
+export const auth = getAuth(app);
+export const db = getFirestore(app);
 
-// Configure auth for Chrome extension
-auth.useDeviceLanguage();
-
-// Set persistence to indexedDB for Chrome extensions
-setPersistence(auth, indexedDBLocalPersistence).catch((error: Error) => {
-  console.error("Error setting persistence:", error);
+// Enable persistence for Firestore
+enableIndexedDbPersistence(db).catch((err) => {
+  console.error('Failed to enable persistence:', err);
 });
 
-export interface UserData {
+// In development, connect to emulators if they exist
+if (import.meta.env.DEV) {
+  try {
+    connectAuthEmulator(auth, 'http://localhost:9099');
+    connectFirestoreEmulator(db, 'localhost', 8080);
+  } catch (error) {
+    console.error('Failed to connect to emulators:', error);
+  }
+}
+
+// Enable auth persistence
+setPersistence(auth, browserLocalPersistence).catch((error) => {
+  console.error('Failed to set auth persistence:', error);
+});
+
+// Base user data type without optional fields
+interface BaseUserData {
   uid: string;
   email: string | null;
   displayName: string | null;
@@ -124,8 +142,6 @@ export async function signInWithChromeGoogle(): Promise<void> {
   }
 }
 
-export const db = getFirestore(app);
-
 export async function decrementRemainingRequests(userId: string): Promise<boolean> {
   try {
     const userRef = doc(db, 'users', userId);
@@ -160,25 +176,36 @@ export async function migrateUserDocuments(): Promise<{ success: number; failed:
     for (const docSnapshot of snapshot.docs) {
       try {
         const data = docSnapshot.data();
-        const updatedData = {
-          uid: docSnapshot.id,
-          email: data.email ?? null,
-          displayName: data.displayName ?? (data.email ? data.email.split('@')[0] : null),
-          photoURL: data.photoURL ?? null,
-          remainingRequests: typeof data.remainingRequests === 'number' ? data.remainingRequests : 5,
-          isSubscribed: Boolean(data.isSubscribed),
-          createdAt: data.createdAt || Date.now()
-        } satisfies UserData;
+        const updates: Partial<BaseUserData> = {};
 
-        // Only update fields that are missing or different
-        const currentData = data as Partial<UserData>;
-        const updates: Partial<UserData> = {};
-        
-        (Object.keys(updatedData) as Array<keyof UserData>).forEach(key => {
-          if (currentData[key] !== updatedData[key]) {
-            updates[key] = updatedData[key];
-          }
-        });
+        // Check each field individually
+        if (docSnapshot.id !== data.uid) {
+          updates.uid = docSnapshot.id;
+        }
+
+        if (data.email !== null && typeof data.email !== 'string') {
+          updates.email = null;
+        }
+
+        if (data.displayName !== null && typeof data.displayName !== 'string') {
+          updates.displayName = data.email ? data.email.split('@')[0] : null;
+        }
+
+        if (data.photoURL !== null && typeof data.photoURL !== 'string') {
+          updates.photoURL = null;
+        }
+
+        if (typeof data.remainingRequests !== 'number') {
+          updates.remainingRequests = 5;
+        }
+
+        if (typeof data.isSubscribed !== 'boolean') {
+          updates.isSubscribed = false;
+        }
+
+        if (typeof data.createdAt !== 'number') {
+          updates.createdAt = Date.now();
+        }
 
         if (Object.keys(updates).length > 0) {
           await updateDoc(docSnapshot.ref, updates);
@@ -220,4 +247,4 @@ if (typeof window !== 'undefined') {
   (window as any).runUserMigration = runMigration;
 }
 
-export { auth };
+export type { UserData };
