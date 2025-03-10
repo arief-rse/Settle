@@ -1,15 +1,22 @@
 // Background script - handles authentication and API calls
 let authToken: string | null = null;
-let activeAccounts: Array<{
-  token: string;
-  userInfo: {
-    email: string;
-    name: string;
-    picture: string;
-  };
-}> = [];
-
 let selectedText: { text: string; timestamp: string } | null = null;
+
+// Function to broadcast the selected text to all extension contexts
+const broadcastSelectedText = () => {
+  if (selectedText) {
+    chrome.runtime.sendMessage({ 
+      type: 'TEXT_AVAILABLE', 
+      text: selectedText.text,
+      timestamp: selectedText.timestamp
+    }).catch(error => {
+      // Ignore errors from no receivers
+      if (!error.message.includes("Could not establish connection")) {
+        console.error('Error broadcasting message:', error);
+      }
+    });
+  }
+};
 
 // Listen for messages from popup and content script
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
@@ -32,16 +39,7 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
       };
       
       // Broadcast to all extension contexts
-      chrome.runtime.sendMessage({ 
-        type: 'TEXT_AVAILABLE', 
-        text: selectedText.text,
-        timestamp: selectedText.timestamp
-      }).catch(error => {
-        // Ignore errors from no receivers
-        if (!error.message.includes("Could not establish connection")) {
-          console.error('Error broadcasting message:', error);
-        }
-      });
+      broadcastSelectedText();
 
       sendResponse({ success: true });
       return true;
@@ -66,7 +64,7 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
 
     case 'SIGN_IN':
       console.log('Signing in');
-    chrome.identity.getAuthToken({ interactive: true }, async (token) => {
+      chrome.identity.getAuthToken({ interactive: true }, async (token) => {
         if (chrome.runtime.lastError) {
           console.error('Auth error:', chrome.runtime.lastError);
           const errorMessage = chrome.runtime.lastError.message || 'Unknown error occurred';
@@ -92,17 +90,20 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
                 { interactive: true },
                 async (newToken) => {
                   if (chrome.runtime.lastError || !newToken) {
+                    console.error('Failed to get new token after revocation:', chrome.runtime.lastError);
                     sendResponse({
                       error: 'Failed to get new token after revocation',
                     });
                     return;
                   }
                   // Continue with the new token
+                  console.log('Got new token after revocation');
                   authToken = newToken;
                   handleAuthSuccess(newToken, sendResponse);
                 }
               );
             } catch (error) {
+              console.error('Failed to handle token revocation:', error);
               sendResponse({ error: 'Failed to handle token revocation' });
             }
           } else {
@@ -112,31 +113,53 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
         }
 
         if (!token) {
+          console.error('No token received from getAuthToken');
           sendResponse({ error: 'No token received' });
           return;
         }
 
+        console.log('Token received from getAuthToken');
         authToken = token;
         handleAuthSuccess(token, sendResponse);
       });
       return true;
 
     case 'SIGN_OUT':
-      chrome.identity.clearAllCachedAuthTokens(() => {
-        authToken = null;
-        // Notify all tabs about the auth state change
-        chrome.tabs.query({}, (tabs) => {
-          tabs.forEach((tab) => {
-            if (tab.id) {
-              chrome.tabs.sendMessage(tab.id, {
-                type: 'AUTH_STATE_CHANGED',
-                user: null,
+      if (authToken) {
+        // First revoke the token to properly log out from Google
+        fetch(`https://accounts.google.com/o/oauth2/revoke?token=${authToken}`, {
+          method: 'GET',
+          headers: {
+            'Content-Type': 'application/x-www-form-urlencoded'
+          }
+        })
+        .then(() => console.log('Token revoked successfully'))
+        .catch(error => console.error('Error revoking token:', error))
+        .finally(() => {
+          // Then clear all cached tokens
+          chrome.identity.clearAllCachedAuthTokens(() => {
+            authToken = null;
+            // Notify all tabs about the auth state change
+            chrome.tabs.query({}, (tabs) => {
+              tabs.forEach((tab) => {
+                if (tab.id) {
+                  chrome.tabs.sendMessage(tab.id, {
+                    type: 'AUTH_STATE_CHANGED',
+                    user: null,
+                  });
+                }
               });
-            }
+            });
+            sendResponse({ success: true });
           });
         });
-        sendResponse({ success: true });
-      });
+      } else {
+        // If no token, just clear cached tokens
+        chrome.identity.clearAllCachedAuthTokens(() => {
+          authToken = null;
+          sendResponse({ success: true });
+        });
+      }
       return true;
 
     case 'GET_AUTH_STATUS':
@@ -170,22 +193,36 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
         });
         return true;
       } else {
-        sendResponse({ token: authToken });
-      }
-      return true;
-
-    case 'SWITCH_ACCOUNT':
-      const { email } = message;
-      const account = activeAccounts.find(
-        (account) => account.userInfo.email === email
-      );
-      if (account) {
-        authToken = account.token;
-        handleAuthSuccess(account.token, sendResponse);
+        // When authToken exists, fetch user info and return both token and userInfo
+        try {
+          fetch('https://www.googleapis.com/oauth2/v2/userinfo', {
+            headers: {
+              Authorization: `Bearer ${authToken}`,
+            },
+          })
+          .then(response => {
+            if (response.ok) {
+              return response.json();
+            } else {
+              throw new Error('Failed to fetch user info');
+            }
+          })
+          .then(userInfo => {
+            sendResponse({ token: authToken, userInfo });
+          })
+          .catch(error => {
+            console.error('Error fetching user info:', error);
+            // If there's an error fetching user info, the token might be invalid
+            // Clear it and return null
+            authToken = null;
+            sendResponse({ token: null, userInfo: null });
+          });
+        } catch (error) {
+          console.error('Error in GET_AUTH_STATUS:', error);
+          sendResponse({ token: null, userInfo: null });
+        }
         return true;
       }
-      sendResponse({ error: 'Account not found' });
-      return true;
 
     default:
       return false;
@@ -198,6 +235,8 @@ const handleAuthSuccess = async (
   sendResponse: (response?: any) => void
 ) => {
   try {
+    console.log("Authentication successful, token:", token ? "exists" : "null");
+    
     const response = await fetch('https://www.googleapis.com/oauth2/v2/userinfo', {
       headers: {
         Authorization: `Bearer ${token}`,
@@ -209,14 +248,7 @@ const handleAuthSuccess = async (
     }
 
     const userInfo = await response.json();
-
-    // Add account to activeAccounts if not already present
-    const existingAccount = activeAccounts.find(
-      (account) => account.userInfo.email === userInfo.email
-    );
-    if (!existingAccount) {
-      activeAccounts.push({ token, userInfo });
-    }
+    console.log("User info fetched:", userInfo);
 
     // Notify all tabs about the auth state change
     chrome.tabs.query({}, (tabs) => {
@@ -229,15 +261,20 @@ const handleAuthSuccess = async (
               name: userInfo.name,
               picture: userInfo.picture,
               credential: token,
-            },
-            activeAccounts: activeAccounts,
+            }
           });
         }
       });
     });
 
-    sendResponse({ token, userInfo, activeAccounts: activeAccounts });
+    // After successful authentication, broadcast the selected text if it exists
+    setTimeout(() => {
+      broadcastSelectedText();
+    }, 500); // Small delay to ensure auth state is updated first
+
+    sendResponse({ token, userInfo });
   } catch (error) {
+    console.error("Error in handleAuthSuccess:", error);
     const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
     sendResponse({ error: errorMessage });
   }

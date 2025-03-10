@@ -6,10 +6,13 @@
     "dev": "vite",
     "build": "tsc && vite build && vite build --mode content && vite build --mode background && copyfiles -u 1 \"public/**/*\" dist/",
     "preview": "vite preview",
-    "lint": "eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0"
+    "lint": "eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
+    "deploy-worker": "node deploy-worker.js",
+    "test-claude": "node test-api-connection.js",
+    "test-openai": "node test-openai-connection.js",
+    "test-deepseek": "node test-deepseek-connection.js"
   },
   "dependencies": {
-    "@anthropic-ai/sdk": "^0.33.1",
     "@heroicons/react": "^2.2.0",
     "@radix-ui/react-accordion": "^1.1.2",
     "@radix-ui/react-alert-dialog": "^1.0.5",
@@ -42,6 +45,7 @@
     "clsx": "^2.0.0",
     "cmdk": "^0.2.0",
     "copyfiles": "^2.4.1",
+    "dotenv": "^16.4.7",
     "embla-carousel-react": "^8.0.0-rc17",
     "input-otp": "^1.1.0",
     "lucide-react": "^0.294.0",
@@ -56,7 +60,8 @@
     "tailwind-merge": "^2.1.0",
     "tailwindcss-animate": "^1.0.7",
     "tesseract.js": "^4.1.1",
-    "vaul": "^0.8.0"
+    "vaul": "^0.8.0",
+    "wrangler": "^3.114.0"
   },
   "devDependencies": {
     "@types/chrome": "^0.0.254",
@@ -75,5 +80,13 @@
     "tailwindcss": "^3.3.6",
     "typescript": "^5.2.2",
     "vite": "^5.0.0"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "workerd"
+    ],
+    "ignoredBuiltDependencies": [
+      "esbuild"
+    ]
   }
 }

@@ -1,20 +1,15 @@
 import { useAuth } from '../../hooks/useAuth'
 
 type GoogleSignInProps = {
-  isAddingAccount?: boolean
   onSuccess?: () => void
 }
 
-export function GoogleSignIn({ isAddingAccount, onSuccess }: GoogleSignInProps) {
-  const { signIn, addAccount, user, loading } = useAuth()
+export function GoogleSignIn({ onSuccess }: GoogleSignInProps) {
+  const { signIn, user, loading } = useAuth()
 
   const handleAuth = async () => {
     try {
-      if (isAddingAccount) {
-        await addAccount()
-      } else {
-        await signIn()
-      }
+      await signIn()
       onSuccess?.()
     } catch (error) {
       console.error('Authentication error:', error)
@@ -25,7 +20,7 @@ export function GoogleSignIn({ isAddingAccount, onSuccess }: GoogleSignInProps) 
     return <div>Loading...</div>
   }
 
-  if (user && !isAddingAccount) return null
+  if (user) return null
 
   return (
     <div className='h-screen flex items-center justify-center bg-zinc-100 p-4'>

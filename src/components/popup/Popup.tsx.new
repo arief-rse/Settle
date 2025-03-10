@@ -21,8 +21,8 @@ const Popup = () => {
 
   // Log auth state changes
   useEffect(() => {
-    console.log("Auth state changed:", {
-      user: auth.user,
+    console.log("Auth state changed:", { 
+      user: auth.user, 
       loading: auth.loading,
       isAuthenticated: !!auth.user
     });
@@ -61,26 +61,23 @@ const Popup = () => {
       }
     };
 
-    // Cleanup
-    return () => {
-      unsubscribeAuth();
-      chrome.runtime.onMessage.removeListener(handleMessage);
-    };
+    chrome.runtime.onMessage.addListener(handleMessage);
+    return () => chrome.runtime.onMessage.removeListener(handleMessage);
   }, []);
 
   const handleStartSelection = async () => {
     try {
       console.log("Starting selection, auth state:", { user: auth.user, loading: auth.loading });
-
+      
       if (!auth.user) {
         console.error("Cannot start selection: User not authenticated");
         setError("Please sign in to use the selection tool");
         return;
       }
-
+      
       setIsSelecting(true);
       const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-
+      
       if (!tab?.id) {
         throw new Error('No active tab found');
       }
@@ -97,15 +94,16 @@ const Popup = () => {
       });
 
       await chrome.tabs.sendMessage(tab.id, { type: "START_SELECTION" });
+      window.close();
     } catch (error: any) {
       console.error('Error starting selection:', error);
       setIsSelecting(false);
-
+      
       // Show a more user-friendly error message
-      const errorMessage = error.message.includes('ExtensionsSettings policy')
+      const errorMessage = error.message.includes('ExtensionsSettings policy') 
         ? 'This page cannot be accessed due to security settings. Please try on a regular webpage.'
         : error.message;
-
+        
       setError(errorMessage);
     }
   };
@@ -125,30 +123,24 @@ const Popup = () => {
               <SettingsIcon className="h-4 w-4" />
             </Button>
             <ThemeToggle />
-            {userData ? (
-              <UserMenu selections={selections} userData={userData} />
-            ) : (
-              <Button variant="outline" size="sm" onClick={handleSignIn}>
-                Sign in
-              </Button>
-            )}
+            <UserMenu />
           </div>
         </div>
-
+        
         {showSettings ? (
           <Settings onClose={() => setShowSettings(false)} />
         ) : (
           <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as "analyze" | "history")}>
             <TabsList className="grid w-full grid-cols-2 mb-4 bg-muted rounded-lg">
-              <TabsTrigger
-                value="analyze"
+              <TabsTrigger 
+                value="analyze" 
                 className="data-[state=active]:bg-background data-[state=active]:shadow-sm flex items-center gap-2 rounded-lg"
               >
                 <Send className="h-4 w-4" />
                 Analyze
               </TabsTrigger>
-              <TabsTrigger
-                value="history"
+              <TabsTrigger 
+                value="history" 
                 className="data-[state=active]:bg-background data-[state=active]:shadow-sm flex items-center gap-2 rounded-lg"
               >
                 <History className="h-4 w-4" />
@@ -203,4 +195,4 @@ const Popup = () => {
   );
 };
 
-export default Popup;
+export default Popup; 

@@ -1,11 +1,11 @@
 import { useEffect, useState, useRef } from "react";
 import { Avatar, AvatarFallback, AvatarImage } from "../../ui/avatar";
-import { Settings, LogOut, User, UserPlus } from "lucide-react";
+import { Settings, LogOut, User } from "lucide-react";
 import { useAuth } from "../../../../hooks/useAuth";
 import { Button } from "../../ui/button";
 
 // Define UserInfo type to match what's in useAuth
-type UserInfo = {
+type User = {
   credential: string;
   name?: string;
   email?: string;
@@ -34,38 +34,44 @@ export function UserMenu() {
   useEffect(() => {
     console.log("UserMenu rendered, auth state:", {
       user: auth.user,
-      loading: auth.loading,
-      activeAccounts: auth.activeAccounts
+      loading: auth.loading
     });
-  }, [auth.user, auth.loading, auth.activeAccounts]);
+  }, [auth.user, auth.loading]);
 
   const handleLogout = async () => {
     console.log("Logout clicked");
     try {
       await auth.signOut();
-      console.log("Logout successful");
+      console.log("Logout successful - user logged out from Google Identity");
       setIsOpen(false);
     } catch (error) {
       console.error("Logout failed:", error);
-    }
-  };
-
-  const handleAddAccount = async () => {
-    console.log("Add account clicked");
-    try {
-      await auth.addAccount();
-      console.log("Add account successful");
-      setIsOpen(false);
-    } catch (error) {
-      console.error("Add account failed:", error);
+      alert("Failed to log out. Please try again.");
     }
   };
 
   const handleSignIn = async () => {
     console.log("Sign in clicked");
     try {
-      await auth.signIn();
-      console.log("Sign in successful");
+      // Get the selected text before signing in
+      chrome.runtime.sendMessage({ type: 'GET_SELECTED_TEXT' }, async (response) => {
+        const selectedTextBeforeSignIn = response?.text;
+        console.log("Selected text before sign in:", selectedTextBeforeSignIn);
+
+        // Sign in
+        await auth.signIn();
+        console.log("Sign in successful, auth state:", { user: auth.user });
+
+        // If there was selected text, make sure it's still available after sign in
+        if (selectedTextBeforeSignIn) {
+          console.log("Re-broadcasting selected text after sign in");
+          chrome.runtime.sendMessage({
+            type: 'TEXT_SELECTED',
+            text: selectedTextBeforeSignIn,
+            timestamp: new Date().toISOString()
+          });
+        }
+      });
     } catch (error) {
       console.error("Sign in failed:", error);
     }
@@ -104,57 +110,21 @@ export function UserMenu() {
           <AvatarImage src={auth.user.photoURL || ""} alt={auth.user.name || "User"} />
           <AvatarFallback>{userInitials}</AvatarFallback>
         </Avatar>
-      </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="w-56">
+        <DropdownMenuLabel>
+          {userData.displayName || userData.email || 'User'}
+        </DropdownMenuLabel>
 
-      {isOpen && (
-        <div className="absolute right-0 mt-2 w-56 rounded-md shadow-lg bg-white dark:bg-gray-800 ring-1 ring-black ring-opacity-5 z-50">
-          <div className="py-1">
-            <div className="px-4 py-2 border-b border-gray-200 dark:border-gray-700">
-              <div className="flex flex-col">
-                <span className="font-medium">{auth.user.name}</span>
-                <span className="text-xs text-gray-500">{auth.user.email}</span>
+        {!userData.isSubscribed && (
+          <>
+            <DropdownMenuSeparator />
+            <div className="px-2 py-2">
+              <div className="text-sm mb-2 flex justify-between">
+                <span>Remaining Requests</span>
+                <span className="font-medium">{userData.remainingRequests}/5</span>
               </div>
             </div>
-
-            {auth.activeAccounts.length > 1 && (
-              <>
-                <div className="px-4 py-1 text-xs text-gray-500">
-                  Switch Account
-                </div>
-                {auth.activeAccounts.map((account: UserInfo) => (
-                  account.email !== auth.user?.email && (
-                    <button
-                      key={account.email}
-                      className="w-full text-left px-4 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center"
-                      onClick={() => {
-                        console.log("Switch account clicked", account.email);
-                        auth.switchAccount(account.email || "");
-                        setIsOpen(false);
-                      }}
-                    >
-                      <Avatar className="h-5 w-5 mr-2">
-                        <AvatarImage src={account.photoURL || ""} alt={account.name || "User"} />
-                        <AvatarFallback>
-                          {account.name
-                            ? account.name.split(" ").map((n: string) => n[0]).join("").toUpperCase()
-                            : account.email?.substring(0, 2).toUpperCase() || "U"}
-                        </AvatarFallback>
-                      </Avatar>
-                      <span>{account.email}</span>
-                    </button>
-                  )
-                ))}
-                <div className="border-t border-gray-200 dark:border-gray-700 my-1"></div>
-              </>
-            )}
-
-            <button
-              className="w-full text-left px-4 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center"
-              onClick={handleAddAccount}
-            >
-              <UserPlus className="mr-2 h-4 w-4" />
-              <span>Add Account</span>
-            </button>
 
             <button
               className="w-full text-left px-4 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center"
@@ -170,18 +140,13 @@ export function UserMenu() {
               <span>Settings</span>
             </button>
 
-            <div className="border-t border-gray-200 dark:border-gray-700 my-1"></div>
+            <DropdownMenuSeparator />
 
-            <button
-              className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center"
-              onClick={handleLogout}
-            >
+            <DropdownMenuItem onClick={handleSignOut} className="text-destructive">
               <LogOut className="mr-2 h-4 w-4" />
-              <span>Log out</span>
-            </button>
-          </div>
-        </div>
-      )}
-    </div>
-  );
+              Sign out
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+      </DropdownMenu>
+      );
 }
