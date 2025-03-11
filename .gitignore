@@ -26,3 +26,6 @@ dist-ssr
 # Chrome extension
 *.crx
 *.xpi
+
+# Supabase credentials
+src/lib/config.local.ts

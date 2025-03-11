@@ -1,0 +1,39 @@
+.requests-remaining {
+  margin-top: 12px;
+  padding: 8px 12px;
+  background-color: #f0f8ff;
+  border-radius: 6px;
+  border-left: 4px solid #3498db;
+  font-size: 14px;
+}
+
+.requests-remaining p {
+  margin: 0;
+  padding: 0;
+}
+
+.requests-remaining strong {
+  color: #3498db;
+  font-weight: bold;
+}
+
+.subscribe-message {
+  margin-top: 6px !important;
+  color: #e74c3c;
+  font-weight: bold;
+}
+
+.subscribe-button {
+  background-color: #e74c3c;
+  color: white;
+  border: none;
+  padding: 8px 16px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-weight: bold;
+  margin-top: 10px;
+}
+
+.subscribe-button:hover {
+  background-color: #c0392b;
+}

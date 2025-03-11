@@ -1,8 +1,0 @@
-name = "anthropic-proxy"
-main = "worker.js"
-compatibility_date = "2023-09-01"
-
-[vars]
-# The variables defined here will be available in your Worker as env vars
-# You'll set the actual API key in the Cloudflare dashboard or via wrangler secret
-# ANTHROPIC_API_KEY = "your-api-key-here" 

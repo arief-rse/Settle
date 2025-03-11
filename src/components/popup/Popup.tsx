@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react'
-import { Button } from '../ui/button'
+import { useState, useEffect } from 'react';
+import { Button } from '../ui/button';
 import { Card } from "../ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../ui/tabs";
 import { Send, History, Settings as SettingsIcon } from "lucide-react";
@@ -12,195 +12,206 @@ import { useAuth } from "../../../hooks/useAuth";
 import Settings from "./components/Settings";
 
 const Popup = () => {
-  const auth = useAuth();
-  const [activeTab, setActiveTab] = useState<"analyze" | "history">("analyze");
-  const [isSelecting, setIsSelecting] = useState(false);
-  const [selectedText, setSelectedText] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [showSettings, setShowSettings] = useState(false);
+    const auth = useAuth();
+    const [activeTab, setActiveTab] = useState<"analyze" | "history">("analyze");
+    const [isSelecting, setIsSelecting] = useState(false);
+    const [selectedText, setSelectedText] = useState<string | null>(null);
+    const [error, setError] = useState<string | null>(null);
+    const [showSettings, setShowSettings] = useState(false);
 
-  // Log auth state changes
-  useEffect(() => {
-    console.log("Auth state changed:", {
-      user: auth.user,
-      loading: auth.loading,
-      isAuthenticated: !!auth.user
-    });
-  }, [auth.user, auth.loading]);
+    // Log auth state changes
+    useEffect(() => {
+        console.log("Auth state changed:", {
+            user: auth.user,
+            loading: auth.loading,
+            isAuthenticated: !!auth.user
+        });
+    }, [auth.user, auth.loading]);
 
-  // Fetch selected text when the popup opens or when auth state changes
-  useEffect(() => {
-    const fetchSelectedText = () => {
-      chrome.runtime.sendMessage({ type: 'GET_SELECTED_TEXT' }, (response) => {
-        if (response?.text) {
-          console.log('Retrieved selected text:', response.text);
-          setSelectedText(response.text);
-        }
-      });
-    };
+    // Fetch selected text when the popup opens or when auth state changes
+    useEffect(() => {
+        const fetchSelectedText = () => {
+            chrome.runtime.sendMessage({ type: 'GET_SELECTED_TEXT' }, (response) => {
+                if (response?.text) {
+                    console.log('Retrieved selected text:', response.text);
+                    setSelectedText(response.text);
+                }
+            });
+        };
 
-    fetchSelectedText();
+        fetchSelectedText();
+    }, [auth.user, auth.loading]);
 
     // Listen for text selection events
-    const handleMessage = (message: any) => {
-      if (message.type === 'TEXT_AVAILABLE') {
-        console.log('Received TEXT_AVAILABLE message:', message.text);
-        setSelectedText(message.text);
-      }
+    useEffect(() => {
+        const handleMessage = (message: any) => {
+            if (message.type === 'TEXT_AVAILABLE') {
+                console.log('Received TEXT_AVAILABLE message:', message.text);
+                setSelectedText(message.text);
+            } else if (message.type === 'TEXT_SELECTED') {
+                setSelectedText(message.text);
+                setIsSelecting(false);
+            }
+        };
+
+        chrome.runtime.onMessage.addListener(handleMessage);
+
+        // Cleanup
+        return () => {
+            chrome.runtime.onMessage.removeListener(handleMessage);
+        };
+    }, [auth.user]); // Re-run when auth state changes
+
+    const handleStartSelection = async () => {
+        try {
+            console.log("Starting selection, auth state:", { user: auth.user, loading: auth.loading });
+
+            if (!auth.user) {
+                console.error("Cannot start selection: User not authenticated");
+                setError("Please sign in to use the selection tool");
+                return;
+            }
+
+            setIsSelecting(true);
+            const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+
+            if (!tab?.id) {
+                throw new Error('No active tab found');
+            }
+
+            // Check if we can access the page
+            const url = tab.url || '';
+            if (url.startsWith('chrome://') || url.startsWith('chrome-extension://') || url.startsWith('https://chrome.google.com/webstore/')) {
+                throw new Error('This page cannot be accessed by extensions for security reasons. Please try on a regular webpage.');
+            }
+
+            await chrome.scripting.executeScript({
+                target: { tabId: tab.id },
+                files: ['content.js']
+            });
+
+            await chrome.tabs.sendMessage(tab.id, { type: "START_SELECTION" });
+        } catch (error: any) {
+            console.error('Error starting selection:', error);
+            setIsSelecting(false);
+
+            // Show a more user-friendly error message
+            const errorMessage = error.message.includes('ExtensionsSettings policy')
+                ? 'This page cannot be accessed due to security settings. Please try on a regular webpage.'
+                : error.message;
+
+            setError(errorMessage);
+        }
     };
 
-    chrome.runtime.onMessage.addListener(handleMessage);
-    return () => chrome.runtime.onMessage.removeListener(handleMessage);
-  }, [auth.user]); // Re-run when auth state changes
-
-  useEffect(() => {
-    const handleMessage = (message: any) => {
-      if (message.type === 'TEXT_SELECTED') {
-        setSelectedText(message.text);
-        setIsSelecting(false);
-      }
+    const handleSignIn = async () => {
+        try {
+            await auth.signIn();
+            console.log("Sign in successful, auth state:", { user: auth.user });
+        } catch (error) {
+            console.error("Sign in failed:", error);
+            setError("Failed to sign in. Please try again.");
+        }
     };
 
-    // Cleanup
-    return () => {
-      unsubscribeAuth();
-      chrome.runtime.onMessage.removeListener(handleMessage);
+    // Function to handle new text selection
+    const handleNewSelection = () => {
+        setSelectedText(null);
+        handleStartSelection();
     };
-  }, []);
 
-  const handleStartSelection = async () => {
-    try {
-      console.log("Starting selection, auth state:", { user: auth.user, loading: auth.loading });
-
-      if (!auth.user) {
-        console.error("Cannot start selection: User not authenticated");
-        setError("Please sign in to use the selection tool");
-        return;
-      }
-
-      setIsSelecting(true);
-      const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-
-      if (!tab?.id) {
-        throw new Error('No active tab found');
-      }
-
-      // Check if we can access the page
-      const url = tab.url || '';
-      if (url.startsWith('chrome://') || url.startsWith('chrome-extension://') || url.startsWith('https://chrome.google.com/webstore/')) {
-        throw new Error('This page cannot be accessed by extensions for security reasons. Please try on a regular webpage.');
-      }
-
-      await chrome.scripting.executeScript({
-        target: { tabId: tab.id },
-        files: ['content.js']
-      });
-
-      await chrome.tabs.sendMessage(tab.id, { type: "START_SELECTION" });
-    } catch (error: any) {
-      console.error('Error starting selection:', error);
-      setIsSelecting(false);
-
-      // Show a more user-friendly error message
-      const errorMessage = error.message.includes('ExtensionsSettings policy')
-        ? 'This page cannot be accessed due to security settings. Please try on a regular webpage.'
-        : error.message;
-
-      setError(errorMessage);
-    }
-  };
-
-  return (
-    <ThemeProvider defaultTheme="dark" storageKey="vite-ui-theme">
-      <Card className="w-[400px] p-4 rounded-xl">
-        <div className="flex justify-between items-center mb-4">
-          <h2 className="text-lg font-semibold">Rectangle Reader</h2>
-          <div className="flex items-center gap-2">
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => setShowSettings(true)}
-              className="h-8 w-8 p-0"
-            >
-              <SettingsIcon className="h-4 w-4" />
-            </Button>
-            <ThemeToggle />
-            {userData ? (
-              <UserMenu selections={selections} userData={userData} />
-            ) : (
-              <Button variant="outline" size="sm" onClick={handleSignIn}>
-                Sign in
-              </Button>
-            )}
-          </div>
-        </div>
-
-        {showSettings ? (
-          <Settings onClose={() => setShowSettings(false)} />
-        ) : (
-          <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as "analyze" | "history")}>
-            <TabsList className="grid w-full grid-cols-2 mb-4 bg-muted rounded-lg">
-              <TabsTrigger
-                value="analyze"
-                className="data-[state=active]:bg-background data-[state=active]:shadow-sm flex items-center gap-2 rounded-lg"
-              >
-                <Send className="h-4 w-4" />
-                Analyze
-              </TabsTrigger>
-              <TabsTrigger
-                value="history"
-                className="data-[state=active]:bg-background data-[state=active]:shadow-sm flex items-center gap-2 rounded-lg"
-              >
-                <History className="h-4 w-4" />
-                History
-              </TabsTrigger>
-            </TabsList>
-
-            <TabsContent value="analyze" className="mt-0">
-              {error ? (
-                <div className="text-center py-8">
-                  <p className="text-red-500 mb-4">{error}</p>
-                  <Button onClick={() => setError(null)} variant="outline">Try Again</Button>
-                </div>
-              ) : selectedText ? (
-                <ResponsePanel
-                  extractedText={selectedText}
-                  onClose={() => setSelectedText(null)}
-                  onHistory={() => setActiveTab("history")}
-                />
-              ) : (
-                <div className="text-center py-8">
-                  {auth.loading ? (
-                    <div className="flex flex-col items-center justify-center">
-                      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mb-4"></div>
-                      <p className="text-sm text-gray-500">Checking authentication status...</p>
+    return (
+        <ThemeProvider defaultTheme="dark" storageKey="vite-ui-theme">
+            <Card className="w-[400px] p-4 rounded-xl">
+                <div className="flex justify-between items-center mb-4">
+                    <h2 className="text-lg font-semibold">Rectangle Reader</h2>
+                    <div className="flex items-center gap-2">
+                        <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => setShowSettings(true)}
+                            className="h-8 w-8 p-0"
+                        >
+                            <SettingsIcon className="h-4 w-4" />
+                        </Button>
+                        <ThemeToggle />
+                        {auth.user ? (
+                            <UserMenu />
+                        ) : (
+                            <Button variant="outline" size="sm" onClick={handleSignIn}>
+                                Sign in
+                            </Button>
+                        )}
                     </div>
-                  ) : (
-                    <>
-                      <Button
-                        onClick={handleStartSelection}
-                        disabled={isSelecting || !auth.user}
-                        className="w-full max-w-sm"
-                      >
-                        {!auth.user ? "Sign in to start" : isSelecting ? "Selecting..." : "Start Selection"}
-                      </Button>
-                      {!auth.user && (
-                        <p className="text-sm text-gray-500 mt-2">Please sign in to use the selection tool</p>
-                      )}
-                    </>
-                  )}
                 </div>
-              )}
-            </TabsContent>
 
-            <TabsContent value="history" className="mt-0">
-              <HistoryPanel onClose={() => setActiveTab("analyze")} />
-            </TabsContent>
-          </Tabs>
-        )}
-      </Card>
-    </ThemeProvider>
-  );
+                {showSettings ? (
+                    <Settings onClose={() => setShowSettings(false)} />
+                ) : (
+                    <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as "analyze" | "history")}>
+                        <TabsList className="grid w-full grid-cols-2 mb-4 bg-muted rounded-lg">
+                            <TabsTrigger
+                                value="analyze"
+                                className="data-[state=active]:bg-background data-[state=active]:shadow-sm flex items-center gap-2 rounded-lg"
+                            >
+                                <Send className="h-4 w-4" />
+                                Analyze
+                            </TabsTrigger>
+                            <TabsTrigger
+                                value="history"
+                                className="data-[state=active]:bg-background data-[state=active]:shadow-sm flex items-center gap-2 rounded-lg"
+                            >
+                                <History className="h-4 w-4" />
+                                History
+                            </TabsTrigger>
+                        </TabsList>
+
+                        <TabsContent value="analyze" className="mt-0">
+                            {error ? (
+                                <div className="text-center py-8">
+                                    <p className="text-red-500 mb-4">{error}</p>
+                                    <Button onClick={() => setError(null)} variant="outline">Try Again</Button>
+                                </div>
+                            ) : selectedText ? (
+                                <ResponsePanel
+                                    extractedText={selectedText}
+                                    onClose={() => setSelectedText(null)}
+                                    onHistory={() => setActiveTab("history")}
+                                    onNewSelection={handleNewSelection}
+                                />
+                            ) : (
+                                <div className="text-center py-8">
+                                    {auth.loading ? (
+                                        <div className="flex flex-col items-center justify-center">
+                                            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mb-4"></div>
+                                            <p className="text-sm text-gray-500">Checking authentication status...</p>
+                                        </div>
+                                    ) : (
+                                        <>
+                                            <Button
+                                                onClick={handleStartSelection}
+                                                disabled={isSelecting || !auth.user}
+                                                className="w-full max-w-sm"
+                                            >
+                                                {!auth.user ? "Sign in to start" : isSelecting ? "Selecting..." : "Start Selection"}
+                                            </Button>
+                                            {!auth.user && (
+                                                <p className="text-sm text-gray-500 mt-2">Please sign in to use the selection tool</p>
+                                            )}
+                                        </>
+                                    )}
+                                </div>
+                            )}
+                        </TabsContent>
+
+                        <TabsContent value="history" className="mt-0">
+                            <HistoryPanel onClose={() => setActiveTab("analyze")} />
+                        </TabsContent>
+                    </Tabs>
+                )}
+            </Card>
+        </ThemeProvider>
+    );
 };
 
-export default Popup;
+export default Popup; 

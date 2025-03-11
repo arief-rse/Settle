@@ -1,4 +1,10 @@
-// Simple AI Processor Implementation using DeepSeek API via Cloudflare Worker
+// Simple AI Processor Implementation using DeepSeek API
+
+import { decrementRequestCount, getUserRequestCount, getOrCreateUserUUID, createInitialRequestCount } from "./supabase";
+import { DEEPSEEK_API_URL, DEEPSEEK_API_KEY } from './api-config';
+
+// Constants
+const FREE_REQUEST_LIMIT = 5;
 
 /**
  * Process the extracted text and return an analysis
@@ -7,111 +13,127 @@
  */
 export const processExtractedText = async (text: string): Promise<string> => {
   try {
-    // Determine if the text is a question
-    const isQuestion = text.trim().endsWith('?') || 
-                      /^(what|who|when|where|why|how)\b/i.test(text.trim());
+    // Check if text is empty or too short
+    if (!text || text.trim().length < 10) {
+      return "The selected text is too short for analysis. Please select more text.";
+    }
+
+    // Get current user
+    const user = await getCurrentUser();
     
-    // Create a simple prompt
-    const prompt = isQuestion 
-      ? `Answer this question clearly and concisely: ${text}`
-      : `Analyze this text and provide a helpful summary: ${text}`;
-    
-    // Try to use DeepSeek API via Cloudflare Worker
-    try {
-      console.log("Using DeepSeek API via Cloudflare Worker...");
-      
-      // Replace this with your actual Cloudflare worker URL
-      const workerUrl = "https://deepseek-proxy.your-subdomain.workers.dev";
-      
-      // Set a timeout for the fetch request
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 10000);
-      
-      const response = await fetch(workerUrl, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          model: "deepseek-chat", // DeepSeek's chat model
-          messages: [
-            {
-              role: "system",
-              content: "You are a helpful assistant that provides clear, concise responses."
-            },
-            {
-              role: "user",
-              content: prompt
-            }
-          ],
-          max_tokens: 1024,
-          temperature: 0.7
-        }),
-        signal: controller.signal
-      });
-      
-      clearTimeout(timeoutId);
-      
-      if (response.ok) {
-        const data = await response.json();
-        if (data.choices && data.choices[0] && data.choices[0].message) {
-          return data.choices[0].message.content as string;
+    // Log the API key (first few characters) for debugging
+    console.log(`Using DeepSeek API key: ${DEEPSEEK_API_KEY.substring(0, 5)}...`);
+    console.log(`Using DeepSeek API URL: ${DEEPSEEK_API_URL}`);
+
+    // Check if user has remaining requests (only if logged in)
+    if (user && user.email) {
+      try {
+        const hasRemainingRequests = await checkRemainingRequests(user.email);
+        if (!hasRemainingRequests) {
+          throw new Error("You have used all your 5 free requests. Please subscribe for unlimited access.");
         }
+      } catch (error) {
+        if (error instanceof Error && error.message.includes("subscribe")) {
+          throw error; // Re-throw subscription-related errors
+        }
+        console.warn("Error checking remaining requests:", error);
+        // Continue with the request even if there's an error checking the count
       }
-      
-      throw new Error("Failed to get response from DeepSeek via Cloudflare Worker");
-    } catch (error) {
-      console.warn("DeepSeek API error, falling back to local processing:", error);
     }
-    
-    // Fallback: Local processing
-    console.log("Using local processing...");
-    
-    if (isQuestion) {
-      return `I received your question: "${text}"
 
-I'm currently operating in offline mode and can't provide a specific answer. 
-Please check your internet connection or API key configuration.`;
+    // Prepare the API request
+    const response = await fetch(DEEPSEEK_API_URL, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${DEEPSEEK_API_KEY}`
+      },
+      body: JSON.stringify({
+        model: "deepseek-chat",
+        messages: [
+          {
+            role: "system",
+            content: `You are an AI assistant that helps analyze text. Provide a concise, helpful analysis of the user's text, including key points, tone, and suggestions for improvement. Format your response in markdown.`
+          },
+          {
+            role: "user",
+            content: `Please analyze the following text:\n\n${text}`
+          }
+        ],
+        temperature: 0.7,
+        max_tokens: 1000
+      })
+    });
+
+    if (!response.ok) {
+      let errorMessage = `API error: ${response.status} - ${response.statusText}`;
+      try {
+        const errorData = await response.json();
+        errorMessage += ` - ${JSON.stringify(errorData)}`;
+        console.error("DeepSeek API error:", errorData);
+      } catch (e) {
+        const errorText = await response.text();
+        errorMessage += ` - ${errorText}`;
+        console.error("DeepSeek API error text:", errorText);
+      }
+      throw new Error(errorMessage);
+    }
+
+    const data = await response.json();
+    const result = data.choices[0].message.content;
+
+    // Decrement the user's request count in Supabase if logged in
+    if (user && user.email) {
+      try {
+        await decrementRequestCount(user.email);
+        console.log("User request count decremented successfully");
+      } catch (error) {
+        console.error("Error decrementing request count:", error);
+        // Continue with the response even if decrementing fails
+      }
     } else {
-      // Simple text analysis
-      const wordCount = text.split(/\s+/).length;
-      const sentences = text.split(/[.!?]+/).filter(s => s.trim().length > 0);
-      const sentenceCount = sentences.length;
-      
-      // Extract some key phrases (simple approach)
-      const words = text.toLowerCase().split(/\s+/);
-      const commonWords = new Set(['the', 'a', 'an', 'and', 'or', 'but', 'in', 'on', 'at', 'to', 'for', 'with', 'by', 'about', 'as', 'of', 'from']);
-      const significantWords = words.filter(word => word.length > 3 && !commonWords.has(word));
-      
-      // Count word frequency
-      const wordFrequency: Record<string, number> = {};
-      significantWords.forEach(word => {
-        wordFrequency[word] = (wordFrequency[word] || 0) + 1;
-      });
-      
-      // Get top 5 most frequent words
-      const topWords = Object.entries(wordFrequency)
-        .sort((a, b) => b[1] - a[1])
-        .slice(0, 5)
-        .map(([word]) => word);
-      
-      // First sentence as intro
-      const intro = sentences[0] ? sentences[0].trim() : '';
-      
-      return `Analysis of the provided text:
-
-Text Statistics:
-- Word count: ${wordCount}
-- Sentence count: ${sentenceCount}
-- Key terms: ${topWords.join(', ')}
-
-Summary:
-${intro}
-
-Note: This is a simplified analysis generated in offline mode.`;
+      console.log("User not authenticated, analysis saved only to localStorage");
     }
+
+    return result;
   } catch (error) {
-    console.error("Error processing text:", error);
-    return "Sorry, I couldn't process your text. Please try again later.";
+    console.error("Text processing error:", error);
+    return `Error: ${error instanceof Error ? error.message : "Unknown error occurred"}`;
+  }
+};
+
+// Function to get the current user from Chrome storage
+const getCurrentUser = async (): Promise<{ email: string } | null> => {
+  return new Promise((resolve) => {
+    chrome.storage.local.get(['user'], (result) => {
+      if (result.user) {
+        resolve(result.user);
+      } else {
+        resolve(null);
+      }
+    });
+  });
+};
+
+// Check if the user has requests remaining using Supabase
+export const checkRemainingRequests = async (email: string): Promise<boolean> => {
+  try {
+    // Get the current request count
+    let count = await getUserRequestCount(email);
+    
+    // If no count record exists, create one with the initial free requests
+    if (!count) {
+      console.log('No request count record found, creating initial record');
+      const userUUID = await getOrCreateUserUUID(email);
+      await createInitialRequestCount(userUUID);
+      return true; // Allow the first request
+    }
+    
+    // Check if the user has remaining requests
+    return count.requests_remaining > 0;
+  } catch (error) {
+    console.error('Error checking remaining requests:', error);
+    // In case of error, allow the request to proceed
+    return true;
   }
 };
